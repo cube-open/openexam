@@ -1,0 +1,6 @@
+# PDF score reports
+reportlab>=4.0
+# Excel question and score export
+openpyxl>=3.1
+# Load testing helper (load_test.py)
+requests>=2.31

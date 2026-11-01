@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据统计 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% set sub = 'stats' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">{{ exam['title'] }} · 数据统计</h1>
+        <div style="margin:4px 0 16px; display:flex; gap:10px; flex-wrap:wrap">
+            <a class="btn" href="{{ url_for('admin_results', exam_id=exam['id']) }}">返回成绩</a>
+            <a class="btn" href="{{ url_for('admin_lecture', exam_id=exam['id']) }}">讲课模式</a>
+        </div>
+
+        <!-- 总览 -->
+        <div class="stat-grid">
+            <div class="stat-card"><span class="stat-num">{{ student_total }}</span><span class="stat-label">应考人数</span></div>
+            <div class="stat-card"><span class="stat-num">{{ n_submitted }}</span><span class="stat-label">已交卷</span></div>
+            <div class="stat-card"><span class="stat-num">{% if avg is not none %}{{ avg }}{% else %}—{% endif %}</span><span class="stat-label">平均分 / {{ full }}</span></div>
+            <div class="stat-card"><span class="stat-num">{% if hi is not none %}{{ hi }}{% else %}—{% endif %}</span><span class="stat-label">最高分</span></div>
+            <div class="stat-card"><span class="stat-num">{% if lo is not none %}{{ lo }}{% else %}—{% endif %}</span><span class="stat-label">最低分</span></div>
+            <div class="stat-card"><span class="stat-num">{% if pass_rate is not none %}{{ pass_rate }}%{% else %}—{% endif %}</span><span class="stat-label">及格率</span></div>
+            <div class="stat-card"><span class="stat-num">{{ n_full }}</span><span class="stat-label">满分人数</span></div>
+            <div class="stat-card"><span class="stat-num">{{ total_violations }}</span><span class="stat-label">总切屏次数</span></div>
+        </div>
+
+        <!-- 交卷情况 -->
+        <section class="panel">
+            <h2>交卷情况</h2>
+            <div class="stat-grid">
+                <div class="stat-card"><span class="stat-num">{{ n_submitted - n_auto }}</span><span class="stat-label">正常交卷</span></div>
+                <div class="stat-card"><span class="stat-num">{{ n_auto }}</span><span class="stat-label">超时自动交卷</span></div>
+                <div class="stat-card"><span class="stat-num">{{ n_in_progress }}</span><span class="stat-label">进行中</span></div>
+                <div class="stat-card"><span class="stat-num">{{ n_not_started }}</span><span class="stat-label">未开始</span></div>
+                <div class="stat-card"><span class="stat-num">{{ n_notes }}</span><span class="stat-label">有笔记</span></div>
+                <div class="stat-card"><span class="stat-num">{{ n_reflection }}</span><span class="stat-label">有反思</span></div>
+            </div>
+        </section>
+
+        <!-- 分数分布 -->
+        <section class="panel">
+            <h2>分数分布（按得分率）</h2>
+            {% if n_submitted %}
+            <div class="histogram">
+                {% for d in dist %}
+                <div class="hist-col">
+                    <div class="hist-bar-wrap">
+                        <span class="hist-count">{{ d['count'] }}</span>
+                        <div class="hist-bar" style="height: {{ d['pct'] }}%"></div>
+                    </div>
+                    <span class="hist-label">{{ d['label'] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted">暂无交卷数据</p>
+            {% endif %}
+        </section>
+
+        <!-- 每题正确率 -->
+        <section class="panel">
+            <h2>每题正确率</h2>
+            {% if lecture %}
+            {% for q in lecture %}
+            <div class="qstat-item">
+                <div class="qstat-top">
+                    <span class="qstat-title q-md-inline">{{ q['num'] }}. {{ q['question'] }}</span>
+                    <span class="qstat-rate">{{ q['stats']['rate'] }}%</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" style="width:{{ q['stats']['rate'] }}%"></div></div>
+                <div class="muted small" style="margin-top:5px">
+                    正确 {{ q['stats']['correct'] }} · 作答 {{ q['stats']['answered'] }} · 未答 {{ q['stats']['blank'] }} · 共 {{ q['stats']['total'] }} 人
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="muted">暂无题目</p>
+            {% endif %}
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.q-md-inline').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parseInline(src); }
+                catch (e) { el.textContent = src; }
+            });
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.coverage
+logs/
+backups/
+.secret_key
+*.db
+*.db1
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.bak
+exam_backup_before_import.json
+.workbuddy-ai/
+legacy/
+
+# 截图产物（本地验收用，不入库）
+/v[0-9]*/
+shots/
+shots_ui/
+.git.previous/

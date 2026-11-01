@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成绩 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <header class="topbar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        <div class="topbar-user">
+            <span class="user-meta">{{ display_name }} · {{ client_ip }}</span>
+            <a class="nav-link" href="{{ url_for('dashboard') }}">返回首页</a>
+            <a class="nav-link" href="{{ url_for('logout') }}">退出</a>
+        </div>
+    </header>
+
+    <main class="container" {% if exam['training_mode'] %}style="padding-bottom:70px"{% endif %}>
+        {% include '_flash.html' %}
+        <div class="result-head">
+            <div class="score-ring">
+                <span class="score-num">{{ result['score'] }}</span>
+                <span class="score-total">/ {{ total }}</span>
+            </div>
+            <div class="result-info">
+                <h1>{{ exam['title'] }}</h1>
+                <p>{{ stu['name'] }}</p>
+                {% if result['auto_submitted'] %}
+                    <span class="tag red">超时自动交卷</span>
+                {% else %}
+                    <span class="tag green">正常交卷</span>
+                {% endif %}
+                {% if result['overtime_seconds'] %}
+                    <span class="tag amber">超时 {{ result['overtime_seconds'] }} 秒</span>
+                {% endif %}
+                <span class="tag gray">切屏警告 {{ result['violations'] }} 次</span>
+                <label class="check-row" style="margin-top:10px">
+                    <input type="checkbox" id="filter-wrong"> 仅查看错题
+                </label>
+                {% if exam['show_explanation'] %}
+                <label class="check-row" style="margin-top:10px">
+                    <input type="checkbox" id="toggle-explanation" checked> 显示官方解析
+                </label>
+                {% endif %}
+                <div style="margin-top:14px; display:flex; flex-direction:column; gap:8px; align-items:flex-start">
+                    {% if exam['training_mode'] %}
+                    <label class="check-row">
+                        <input type="checkbox" id="pdf-notes" checked> 在 PDF 中包含我的解析笔记
+                    </label>
+                    {% endif %}
+                    {% if exam['show_original'] %}
+                    <a class="btn" href="{{ url_for('exam_original', exam_id=exam['id']) }}">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>查看原卷
+                    </a>
+                    {% endif %}
+                    {% if exam['enable_reflection'] %}
+                    <a class="btn" href="{{ url_for('reflection', exam_id=exam['id']) }}">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>写反思
+                    </a>
+                    {% endif %}
+                    <button type="button" class="btn primary" onclick="downloadPdf()">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>下载成绩单 PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <form method="post" action="{{ url_for('save_notes', exam_id=exam['id']) }}" id="notes-form">
+            <div class="paper">
+                <h2>答题详情</h2>
+                {% set ns = namespace(qno=0) %}
+                {% for r in rows %}
+                {% if r['type'] == 'group' %}
+                <!-- 大题 -->
+                <div class="q-group">
+                    <div class="q-group-context q-md">{{ r['question'] }}</div>
+                    <div class="q-group-children">
+                        {% for sub in r['children'] %}
+                        {% set ns.qno = ns.qno + 1 %}
+                        <div class="review-item {{ 'correct' if sub['correct'] else 'wrong' }}">
+                            <div class="r-head">
+                                <span class="q-no">{{ ns.qno }}</span>
+                                <span class="tag gray">{{ sub['type_label'] }}</span>
+                                <span class="r-mark {{ 'ok' if sub['correct'] else 'bad' }}">
+                                    {% if sub['correct'] %}
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    {% else %}
+                                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    {% endif %}
+                                </span>
+                                <div class="q-text q-md-inline">{{ sub['question'] }}</div>
+                                <span class="q-score">{{ sub['score'] if sub['correct'] else 0 }} / {{ sub['score'] }} 分</span>
+                            </div>
+                            {% if sub['type'] in ('choice', 'judge', 'multi') %}
+                                <div class="r-options">
+                                    {% for opt in sub['options'] %}
+                                    <div class="r-option {{ 'is-answer' if exam['show_answer'] and 'ABCDEFGH'[loop.index0] in sub['answer'] }}">
+                                        {{ 'ABCDEFGH'[loop.index0] }}. {{ opt }}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <div class="r-answer">
+                                你的答案：<strong>{{ sub['given'] if sub['given'] else '（未作答）' }}</strong>
+                                {% if exam['show_answer'] and not sub['correct'] %}
+                                    <span class="correct-answer">正确答案：{{ sub['answer_display'] }}</span>
+                                {% endif %}
+                            </div>
+                            {% if exam['show_explanation'] and sub['explanation'] %}
+                            <div class="explanation">
+                                <div class="explanation-title">官方解析</div>
+                                <div class="markdown-body">{{ sub['explanation'] }}</div>
+                            </div>
+                            {% endif %}
+                            {% if exam['training_mode'] %}
+                            <div class="q-note">
+                                <div class="note-label">我的笔记</div>
+                                <textarea name="note_{{ sub['id'] }}" class="note-input" placeholder="记录思路、易错点…">{{ notes.get(sub['id']|string, '') }}</textarea>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <!-- 普通题 -->
+                {% set ns.qno = ns.qno + 1 %}
+                <div class="review-item {{ 'correct' if r['correct'] else 'wrong' }}">
+                    <div class="r-head">
+                        <span class="q-no">{{ ns.qno }}</span>
+                        <span class="tag gray">{{ r['type_label'] }}</span>
+                        <span class="r-mark {{ 'ok' if r['correct'] else 'bad' }}">
+                            {% if r['correct'] %}
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            {% else %}
+                            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            {% endif %}
+                        </span>
+                        <div class="q-text q-md">{{ r['question'] }}</div>
+                        <span class="q-score">{{ r['score'] if r['correct'] else 0 }} / {{ r['score'] }} 分</span>
+                    </div>
+                    {% if r['type'] in ('choice', 'judge', 'multi') %}
+                        <div class="r-options">
+                            {% for opt in r['options'] %}
+                            <div class="r-option {{ 'is-answer' if exam['show_answer'] and 'ABCDEFGH'[loop.index0] in r['answer'] }}">
+                                {{ 'ABCDEFGH'[loop.index0] }}. {{ opt }}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    <div class="r-answer">
+                        你的答案：<strong>{{ r['given'] if r['given'] else '（未作答）' }}</strong>
+                        {% if exam['show_answer'] and not r['correct'] %}
+                            <span class="correct-answer">正确答案：{{ r['answer_display'] }}</span>
+                        {% endif %}
+                    </div>
+                    {% if exam['show_explanation'] and r['explanation'] %}
+                    <div class="explanation">
+                        <div class="explanation-title">官方解析</div>
+                        <div class="markdown-body">{{ r['explanation'] }}</div>
+                    </div>
+                    {% endif %}
+                    {% if exam['training_mode'] %}
+                    <div class="q-note">
+                        <div class="note-label">我的笔记</div>
+                        <textarea name="note_{{ r['id'] }}" class="note-input" placeholder="记录思路、易错点…">{{ notes.get(r['id']|string, '') }}</textarea>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endfor %}
+
+            </div>
+        </form>
+
+        {% if exam['training_mode'] %}
+        <div class="notes-fab">
+            <button type="submit" class="btn primary" form="notes-form">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>保存笔记
+            </button>
+        </div>
+        {% endif %}
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        function addLineNumbers() {
+            document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                if (code.getAttribute('data-numbered')) return;
+                code.setAttribute('data-numbered', '1');
+                code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                    return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                }).join('');
+            });
+        }
+        function renderMarkdown() {
+            document.querySelectorAll('.markdown-body, .q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+        }
+        document.addEventListener('DOMContentLoaded', renderMarkdown);
+
+        // 仅查看错题筛选
+        var filterWrong = document.getElementById('filter-wrong');
+        if (filterWrong) {
+            filterWrong.addEventListener('change', function () {
+                document.querySelectorAll('.review-item').forEach(function (el) {
+                    el.style.display = (filterWrong.checked && !el.classList.contains('wrong')) ? 'none' : '';
+                });
+            });
+        }
+
+        function downloadPdf() {
+            var url = "{{ url_for('exam_pdf', exam_id=exam['id']) }}";
+            var cb = document.getElementById('pdf-notes');
+            if (cb && cb.checked) url += '?notes=1';
+            window.location.href = url;
+        }
+
+        var toggleExp = document.getElementById('toggle-explanation');
+        if (toggleExp) {
+            var savedExp = localStorage.getItem('showExplanation');
+            if (savedExp !== null) toggleExp.checked = (savedExp === '1');
+            function syncExp() {
+                document.querySelectorAll('.explanation').forEach(function (el) {
+                    el.style.display = toggleExp.checked ? '' : 'none';
+                });
+                localStorage.setItem('showExplanation', toggleExp.checked ? '1' : '0');
+            }
+            toggleExp.addEventListener('change', syncExp);
+            syncExp();
+        }
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

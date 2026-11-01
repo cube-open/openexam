@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号与权限 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'admins' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        <h1 class="page-title">账号与权限</h1>
+        {% include '_flash.html' %}
+
+        <p class="muted" style="margin:-8px 0 16px">
+            权限在服务端判定，隐藏按钮不构成权限控制。超级管理员可管理全部组织；
+            组织管理员只能管理本组织的教师、学生与考试。
+        </p>
+
+        <section class="panel">
+            <h2>新增账号</h2>
+            <form method="post" class="inline-form">
+                <input type="hidden" name="action" value="create">
+                <input type="text" name="username" placeholder="用户名" required>
+                <input type="password" name="password" placeholder="初始密码（至少 6 位）" required>
+                <select name="role_code">
+                    {% for r in roles %}
+                    <option value="{{ r['code'] }}" {% if r['code'] == 'teacher' %}selected{% endif %}>{{ r['name'] }}</option>
+                    {% endfor %}
+                </select>
+                <select name="org_id">
+                    {% for o in orgs %}
+                    <option value="{{ o['id'] }}">{{ o['name'] }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn primary">创建</button>
+            </form>
+            <p class="muted small" style="margin:8px 0 0">
+                新账号首次登录必须先修改初始密码；修改后其他设备上的旧会话会自动失效。
+            </p>
+        </section>
+
+        <section class="panel">
+            <h2>现有账号（{{ admins|length }}）</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width:48px">ID</th>
+                        <th>用户名</th>
+                        <th>角色 / 组织</th>
+                        <th>最近登录</th>
+                        <th>重置密码</th>
+                        <th>改名</th>
+                        <th class="ta-r">删除</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in admins %}
+                    <tr>
+                        <td data-label="ID">{{ a['id'] }}</td>
+                        <td data-label="用户名">
+                            {{ a['username'] }}
+                            {% if a['id'] == me %}<span class="tag green">当前登录</span>{% endif %}
+                            {% if a['must_change_password'] %}<span class="tag amber">待改密</span>{% endif %}
+                        </td>
+                        <td data-label="角色 / 组织">
+                            {% if a['id'] == me %}
+                                <span class="tag">{{ a['role_name'] or '未分配' }}</span>
+                                <span class="muted small">{{ a['org_name'] or '' }}</span>
+                            {% else %}
+                            <form method="post" style="display:flex; gap:4px; align-items:center">
+                                <input type="hidden" name="action" value="set_role">
+                                <input type="hidden" name="admin_id" value="{{ a['id'] }}">
+                                <select name="role_code" style="padding:4px 6px;font-size:13px">
+                                    {% for r in roles %}
+                                    <option value="{{ r['code'] }}" {% if r['code'] == a['role_code'] %}selected{% endif %}>{{ r['name'] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select name="org_id" style="padding:4px 6px;font-size:13px">
+                                    {% for o in orgs %}
+                                    <option value="{{ o['id'] }}" {% if o['id'] == a['org_id'] %}selected{% endif %}>{{ o['name'] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn sm">保存</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                        <td data-label="最近登录" class="muted small">
+                            {% if a['last_login_at'] %}{{ fmt_ts(a['last_login_at']) }}{% else %}从未登录{% endif %}
+                        </td>
+                        <td data-label="重置密码">
+                            <form method="post" style="display:inline-flex; gap:4px; align-items:center">
+                                <input type="hidden" name="action" value="reset">
+                                <input type="hidden" name="admin_id" value="{{ a['id'] }}">
+                                <input type="text" name="password" placeholder="新密码" required
+                                       style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                                <button type="submit" class="btn sm">重置</button>
+                            </form>
+                        </td>
+                        <td data-label="改名">
+                            <form method="post" style="display:inline-flex; gap:4px; align-items:center">
+                                <input type="hidden" name="action" value="rename">
+                                <input type="hidden" name="admin_id" value="{{ a['id'] }}">
+                                <input type="text" name="username" value="{{ a['username'] }}" required
+                                       style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                                <button type="submit" class="btn sm">改名</button>
+                            </form>
+                        </td>
+                        <td data-label="删除" class="ta-r">
+                            {% if a['id'] != me %}
+                            <form method="post" action="{{ url_for('admin_delete_admin', aid=a['id']) }}"
+                                  onsubmit="return confirm('确定删除账号「{{ a['username'] }}」？');" style="display:inline">
+                                <button type="submit" class="btn sm danger">删除</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel">
+            <h2>角色权限对照</h2>
+            <table class="table">
+                <thead><tr><th>权限</th><th>超级管理员</th><th>组织管理员</th><th>教师</th></tr></thead>
+                <tbody>
+                    {% for code, label in permissions.items() %}
+                    <tr>
+                        <td data-label="权限">{{ label }} <span class="muted small">{{ code }}</span></td>
+                        <td data-label="超级管理员">{% if code in perm_map['super_admin'] %}✓{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td data-label="组织管理员">{% if code in perm_map['org_admin'] %}✓{% else %}<span class="muted">—</span>{% endif %}</td>
+                        <td data-label="教师">{% if code in perm_map['teacher'] %}✓{% else %}<span class="muted">—</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

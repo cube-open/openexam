@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的考试 · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    {% set active = 'dashboard' %}
+    {% include '_topbar_student.html' %}
+
+    <main class="container">
+        <div class="page-head">
+            <h1>考试大厅</h1>
+            <p class="muted">点击「开始考试」进入全屏作答，考试期间切换标签页 / 窗口会被记录</p>
+        </div>
+
+        {% include '_flash.html' %}
+
+        {% if items %}
+        {% macro card(it) %}
+            {% set e = it['exam'] %}
+            <div class="exam-card">
+                <div class="exam-card-top">
+                    <h3>{{ e['title'] }}</h3>
+                    {% if it['status'] == 'submitted' %}
+                        <span class="tag green">已完成</span>
+                    {% elif it['status'] == 'in_progress' %}
+                        <span class="tag amber">进行中</span>
+                    {% elif it['win'] == 'open' %}
+                        <span class="tag blue">可参加</span>
+                    {% elif it['win'] == 'upcoming' %}
+                        <span class="tag gray">未开始</span>
+                    {% else %}
+                        <span class="tag gray">已结束</span>
+                    {% endif %}
+                </div>
+                {% if e['description'] %}<p class="muted exam-desc">{{ e['description'] }}</p>{% endif %}
+                <div class="exam-meta">
+                    <span class="meta-item">{{ e['duration_minutes'] }} 分钟</span>
+                    {% if it['win'] == 'closed' %}
+                    <span class="meta-item">{{ it['win_label'] }}</span>
+                    {% elif it['win'] == 'upcoming' %}
+                    <span class="meta-item">{{ it['win_label'] }}</span>
+                    {% endif %}
+                </div>
+                {% if it['status'] == 'submitted' %}
+                    <div class="exam-score"><span class="score-label">得分</span><strong>{{ it['score'] }}</strong></div>
+                    <a class="btn block" href="{{ url_for('result', exam_id=e['id']) }}">查看成绩</a>
+                {% elif it['status'] == 'in_progress' %}
+                    <form method="post" action="{{ url_for('start_exam', exam_id=e['id']) }}">
+                        <button type="submit" class="btn primary block">继续作答</button>
+                    </form>
+                {% elif it['win'] == 'open' %}
+                    <form id="start-form-{{ e['id'] }}" method="post" action="{{ url_for('start_exam', exam_id=e['id']) }}"></form>
+                    <button type="button" class="btn primary block" onclick="confirmStart({{ e['id'] }})">开始考试</button>
+                {% elif it['win'] == 'upcoming' %}
+                    <div class="exam-score muted">{{ it['win_label'] }}</div>
+                    <button type="button" class="btn block" disabled>尚未开始</button>
+                {% else %}
+                    <div class="exam-score muted">{{ it['win_label'] }}</div>
+                    <button type="button" class="btn block" disabled>已结束</button>
+                {% endif %}
+            </div>
+        {% endmacro %}
+
+        {% if ongoing %}
+        <section class="hall-section">
+            <h2 class="section-title">
+                进行中
+                <span class="section-count">{{ ongoing|length }}</span>
+            </h2>
+            <div class="exam-grid">
+                {% for it in ongoing %}{{ card(it) }}{% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if upcoming %}
+        <section class="hall-section">
+            <h2 class="section-title">
+                待参加
+                <span class="section-count">{{ upcoming|length }}</span>
+            </h2>
+            <div class="exam-grid">
+                {% for it in upcoming %}{{ card(it) }}{% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if finished %}
+        <section class="hall-section">
+            <h2 class="section-title">
+                已结束
+                <span class="section-count">{{ finished|length }}</span>
+            </h2>
+            <div class="exam-grid">
+                {% for it in finished %}{{ card(it) }}{% endfor %}
+            </div>
+        </section>
+        {% endif %}
+        {% else %}
+        <div class="empty-state">暂无可用试卷，请联系管理员。</div>
+        {% endif %}
+    </main>
+
+    <!-- 开始考试确认（防误触） -->
+    <div id="start-modal" class="modal-overlay">
+        <div class="modal">
+            <h3>考试须知</h3>
+            <div class="agreement">
+                <ul>
+                    <li>进入后即<b>开始计时并作答</b>，请确认已准备好；</li>
+                    <li>考试期间切换标签页 / 窗口会被<b>记录警告</b>；</li>
+                    <li>答案会即时保存，<b>交卷后无法修改</b>；</li>
+                    <li>请独立完成，诚信考试。</li>
+                </ul>
+            </div>
+            <div class="modal-actions">
+                <button id="start-cancel" class="btn">取消</button>
+                <button id="start-ok" class="btn primary">确认开始</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 排队等待提示 -->
+    <div id="loading-overlay" class="modal-overlay" style="display:none">
+        <div class="modal" style="text-align:center;padding:40px 30px">
+            <div class="loading-spinner"></div>
+            <h3 id="loading-title" style="margin-top:20px">正在进入考试…</h3>
+            <p id="loading-msg" class="muted" style="margin-top:10px">请稍候，正在为您准备试卷</p>
+        </div>
+    </div>
+
+    <style>
+        .loading-spinner {
+            width: 48px; height: 48px;
+            margin: 0 auto;
+            border: 4px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    <script>
+        let pendingStartForm = null;
+        let loadingTimer = null;
+        let loadingSeconds = 0;
+
+        function confirmStart(examId) {
+            pendingStartForm = document.getElementById('start-form-' + examId);
+            document.getElementById('start-modal').classList.add('show');
+        }
+
+        function showLoading() {
+            loadingSeconds = 0;
+            document.getElementById('loading-overlay').style.display = 'flex';
+            document.getElementById('loading-title').textContent = '正在进入考试…';
+            document.getElementById('loading-msg').textContent = '请稍候，正在为您准备试卷';
+            loadingTimer = setInterval(function () {
+                loadingSeconds++;
+                if (loadingSeconds >= 3) {
+                    document.getElementById('loading-title').textContent = '排队中，请耐心等待…';
+                    document.getElementById('loading-msg').textContent = '当前进入人数较多，已等待 ' + loadingSeconds + ' 秒';
+                }
+            }, 1000);
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.display = 'none';
+            if (loadingTimer) { clearInterval(loadingTimer); loadingTimer = null; }
+        }
+
+        var startCancelled = false;
+
+        function tryStartExam(url, formData) {
+            if (startCancelled) return;
+            fetch(url, {
+                method: 'POST',
+                body: formData,
+                redirect: 'follow',
+                credentials: 'same-origin'
+            }).then(function (resp) {
+                // 成功进入（重定向后最终页面）
+                if (resp.ok && resp.status === 200) {
+                    // 检查是否是考试页面（重定向成功）
+                    window.location.href = resp.url || url.replace('/start', '');
+                } else if (resp.status === 503) {
+                    // 排队中，1.5秒后重试
+                    setTimeout(function () {
+                        tryStartExam(url, formData);
+                    }, 1500);
+                } else {
+                    hideLoading();
+                    alert('进入失败，请刷新页面重试');
+                }
+            }).catch(function () {
+                // 网络异常也继续重试
+                setTimeout(function () {
+                    tryStartExam(url, formData);
+                }, 2000);
+            });
+        }
+
+        document.getElementById('start-ok').addEventListener('click', function () {
+            document.getElementById('start-modal').classList.remove('show');
+            if (pendingStartForm) {
+                startCancelled = false;
+                showLoading();
+                var form = pendingStartForm;
+                var url = form.action;
+                var formData = new FormData(form);
+                tryStartExam(url, formData);
+            }
+        });
+
+        document.getElementById('start-cancel').addEventListener('click', function () {
+            document.getElementById('start-modal').classList.remove('show');
+            pendingStartForm = null;
+            startCancelled = true;
+            hideLoading();
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

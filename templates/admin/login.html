@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员登录</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}">
+    <div class="auth-card">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        <p class="sub">默认账号 admin / admin123</p>
+
+        {% include '_flash.html' %}
+
+        <form method="post">
+            <label>用户名</label>
+            <input type="text" name="username" required autocomplete="username">
+            <label>密码</label>
+            <input type="password" name="password" required autocomplete="current-password">
+            <button type="submit" class="btn primary block">登 录</button>
+        </form>
+        <div class="auth-foot"><a href="{{ url_for('index') }}">返回学生端</a></div>
+    </div>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

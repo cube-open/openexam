@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>改分 · {{ result['name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container narrow">
+        {% set sub = 'results' %}
+        {% include 'admin/_subnav.html' %}
+        <div style="display:flex; align-items:center; justify-content:space-between; margin: 4px 0 16px">
+            <h1 class="page-title" style="margin:0">改分 · {{ result['name'] }}</h1>
+            <a class="btn" href="{{ url_for('admin_results', exam_id=exam['id']) }}">返回成绩</a>
+        </div>
+
+        {% include '_flash.html' %}
+
+        <div class="panel">
+            <p><strong>{{ exam['title'] }}</strong> · {{ result['name'] }}（学号 {{ result['student_no'] }}）· 满分 {{ total }}</p>
+        </div>
+
+        <form method="post">
+            {% for r in rows %}
+            <div class="panel grade-row">
+                <div class="q-head">
+                    <span class="q-no">{{ loop.index }}</span>
+                    <span class="tag gray">{{ r['type_label'] }}</span>
+                    <div class="q-text q-md">{{ r['question'] }}</div>
+                </div>
+                <div class="muted small" style="margin:8px 0 4px">
+                    学生答案：<strong>{{ r['given'] if r['given'] else '（未作答）' }}</strong>
+                    {% if not r['correct'] %}<span class="correct-answer">正确答案：{{ r['answer_display'] }}</span>{% endif %}
+                </div>
+                <label style="display:flex; align-items:center; gap:8px; font-size:14px; color:var(--muted)">
+                    本题得分
+                    <input type="number" name="score_{{ r['id'] }}" value="{{ r['awarded'] }}"
+                           step="0.5" min="0" max="{{ r['score'] }}"
+                           style="width:80px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:14px">
+                    <span class="muted small">/ {{ r['score'] }} 分</span>
+                </label>
+            </div>
+            {% endfor %}
+
+            <button type="submit" class="btn primary">保存改分</button>
+        </form>
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        function addLineNumbers() {
+            document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                if (code.getAttribute('data-numbered')) return;
+                code.setAttribute('data-numbered', '1');
+                code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                    return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                }).join('');
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

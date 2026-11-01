@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>封禁IP管理 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'ips' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <h2>手动封禁 IP</h2>
+            <p class="muted small" style="margin-bottom:10px">
+                封禁后该 IP 将无法访问学生端（后台与静态资源不受影响，管理员不受误锁）。备注可留空，之后也能补填。
+            </p>
+            <form method="post" action="{{ url_for('admin_block_ip') }}" class="inline-form">
+                <input type="hidden" name="back" value="{{ url_for('admin_ips') }}">
+                <input type="text" name="ip" placeholder="例如 192.168.1.100" value="{{ request.args.get('ip', '') }}" required>
+                <input type="text" name="remark" placeholder="备注（可选，如：张三作弊）">
+                <button type="submit" class="btn primary">封 禁</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>已封禁 IP（{{ rows|length }}）</h2>
+            <table class="table">
+                <thead>
+                    <tr><th>IP</th><th>备注</th><th>封禁时间</th><th class="ta-r">操作</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td data-label="IP">{{ r['ip'] }}</td>
+                        <td data-label="备注">
+                            <form method="post" action="{{ url_for('admin_update_remark') }}"
+                                  style="display:flex; gap:6px; align-items:center">
+                                <input type="hidden" name="ip" value="{{ r['ip'] }}">
+                                <input type="text" name="remark" value="{{ r['remark'] }}" placeholder="添加备注"
+                                       style="flex:1; min-width:140px; padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px">
+                                <button type="submit" class="btn sm">保存备注</button>
+                            </form>
+                        </td>
+                        <td data-label="封禁时间">{{ r['created_at'] }}</td>
+                        <td data-label="操作" class="ta-r">
+                            <form method="post" action="{{ url_for('admin_unblock_ip') }}" style="display:inline">
+                                <input type="hidden" name="ip" value="{{ r['ip'] }}">
+                                <button type="submit" class="btn sm">解除封禁</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="IP" colspan="4" class="empty">暂无封禁的 IP</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

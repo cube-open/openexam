@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ACE 安全提示</title>
+
+<style>
+
+/* =========================================================
+   RESET
+========================================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family:
+        "Microsoft YaHei",
+        "PingFang SC",
+        "Noto Sans SC",
+        Arial,
+        sans-serif;
+
+    background: #d9363e;
+    color: #fff;
+}
+
+
+/* =========================================================
+   主界面
+========================================================= */
+
+.ace-screen {
+    position: relative;
+
+    width: 100vw;
+    height: 100vh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+
+    background: #d9363e;
+
+    transition:
+        opacity .45s ease,
+        transform .45s ease;
+}
+
+
+/* =========================================================
+   背景光晕
+========================================================= */
+
+.ace-screen::before {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        radial-gradient(
+            ellipse at 50% 45%,
+            rgba(255,255,255,.035) 0%,
+            rgba(255,255,255,0) 50%
+        );
+
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   边缘暗部
+========================================================= */
+
+.ace-screen::after {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        linear-gradient(
+            90deg,
+            rgba(0,0,0,.025),
+            transparent 15%,
+            transparent 85%,
+            rgba(0,0,0,.025)
+        );
+
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   中央内容
+========================================================= */
+
+.ace-content {
+    position: relative;
+    z-index: 5;
+
+    width: 900px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    text-align: center;
+
+    transform: translateY(-3vh);
+
+    animation:
+        contentShow
+        .8s
+        cubic-bezier(.16,1,.3,1)
+        both;
+}
+
+
+/* =========================================================
+   ACE LOGO
+========================================================= */
+
+.ace-logo {
+    width: 330px;
+    height: 189px;
+
+    display: block;
+
+    margin-bottom: 34px;
+
+    overflow: visible;
+
+    filter:
+        drop-shadow(
+            0 1px 1px rgba(0,0,0,.05)
+        );
+
+    animation:
+        logoShow
+        .75s
+        .05s
+        cubic-bezier(.16,1,.3,1)
+        both;
+}
+
+
+/* =========================================================
+   主标题
+========================================================= */
+
+.title {
+    color: #fff;
+
+    font-size: 52px;
+
+    font-weight: 400;
+
+    line-height: 1.25;
+
+    letter-spacing: 4px;
+
+    white-space: nowrap;
+
+    text-shadow:
+        0 1px 2px rgba(0,0,0,.08);
+
+    opacity: 0;
+
+    animation:
+        textShow
+        .65s
+        .2s
+        ease-out
+        forwards;
+}
+
+
+/* =========================================================
+   副标题
+========================================================= */
+
+.subtitle {
+    margin-top: 22px;
+
+    color: rgba(255,255,255,.92);
+
+    font-size: 21px;
+
+    line-height: 1.5;
+
+    letter-spacing: 2px;
+
+    opacity: 0;
+
+    animation:
+        textShow
+        .65s
+        .32s
+        ease-out
+        forwards;
+}
+
+
+/* =========================================================
+   说明文字
+========================================================= */
+
+.description {
+    margin-top: 16px;
+
+    max-width: 720px;
+
+    color: rgba(255,255,255,.70);
+
+    font-size: 12px;
+
+    line-height: 1.8;
+
+    letter-spacing: .8px;
+
+    opacity: 0;
+
+    animation:
+        textShow
+        .65s
+        .42s
+        ease-out
+        forwards;
+}
+
+
+/* =========================================================
+   分割线
+========================================================= */
+
+.small-line {
+    width: 75px;
+    height: 1px;
+
+    margin-top: 17px;
+
+    background: rgba(255,255,255,.38);
+
+    transform: scaleX(0);
+
+    animation:
+        lineShow
+        .5s
+        .5s
+        ease-out
+        forwards;
+}
+
+
+/* =========================================================
+   继续按钮
+========================================================= */
+
+.continue-button {
+    position: relative;
+
+    width: 190px;
+    height: 54px;
+
+    margin-top: 34px;
+
+    border: 1px solid rgba(255,255,255,.8);
+
+    outline: none;
+
+    background: rgba(255,255,255,.055);
+
+    color: #fff;
+
+    font-family:
+        "Microsoft YaHei",
+        "PingFang SC",
+        Arial,
+        sans-serif;
+
+    font-size: 18px;
+
+    font-weight: 400;
+
+    letter-spacing: 4px;
+
+    cursor: pointer;
+
+    overflow: hidden;
+
+    opacity: 0;
+
+    animation:
+        buttonShow
+        .65s
+        .58s
+        ease-out
+        forwards;
+
+    transition:
+        background .2s ease,
+        border-color .2s ease,
+        transform .2s ease,
+        box-shadow .2s ease;
+}
+
+
+/* =========================================================
+   按钮扫光
+========================================================= */
+
+.continue-button::before {
+    content: "";
+
+    position: absolute;
+
+    left: -120%;
+    top: 0;
+
+    width: 100%;
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            transparent,
+            rgba(255,255,255,.2),
+            transparent
+        );
+
+    transition: left .45s ease;
+}
+
+
+/* =========================================================
+   按钮 Hover
+========================================================= */
+
+.continue-button:hover {
+    background: rgba(255,255,255,.14);
+
+    border-color: #fff;
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 8px 25px rgba(0,0,0,.08);
+}
+
+.continue-button:hover::before {
+    left: 120%;
+}
+
+
+/* =========================================================
+   按钮点击
+========================================================= */
+
+.continue-button:active {
+    transform: scale(.97);
+}
+
+
+/* =========================================================
+   诚信考试
+========================================================= */
+
+.honesty {
+    margin-top: 20px;
+
+    color: rgba(255,255,255,.72);
+
+    font-size: 13px;
+
+    font-weight: 400;
+
+    line-height: 1.5;
+
+    letter-spacing: 3px;
+
+    opacity: 0;
+
+    animation:
+        textShow
+        .65s
+        .72s
+        ease-out
+        forwards;
+}
+
+
+/* =========================================================
+   SVG LOGO
+========================================================= */
+
+.logo-white {
+    fill: #fff;
+}
+
+.logo-red {
+    fill: #d9363e;
+}
+
+
+/* =========================================================
+   进入动画
+========================================================= */
+
+@keyframes contentShow {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(calc(-3vh + 8px));
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(-3vh);
+    }
+}
+
+
+@keyframes logoShow {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(10px)
+            scale(.94);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0)
+            scale(1);
+    }
+}
+
+
+@keyframes textShow {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0);
+    }
+}
+
+
+@keyframes lineShow {
+
+    from {
+        transform: scaleX(0);
+    }
+
+    to {
+        transform: scaleX(1);
+    }
+}
+
+
+@keyframes buttonShow {
+
+    from {
+        opacity: 0;
+
+        transform:
+            translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            translateY(0);
+    }
+}
+
+
+/* =========================================================
+   点击继续后的退出
+========================================================= */
+
+.ace-screen.exit {
+    opacity: 0;
+
+    transform: scale(1.025);
+
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   平板 / 小屏
+========================================================= */
+
+@media (max-width: 900px) {
+
+    .ace-content {
+        width: 90vw;
+    }
+
+    .ace-logo {
+        width: 260px;
+        height: 149px;
+
+        margin-bottom: 25px;
+    }
+
+    .title {
+        font-size: 42px;
+    }
+
+    .subtitle {
+        font-size: 18px;
+    }
+
+    .description {
+        font-size: 11px;
+    }
+}
+
+
+/* =========================================================
+   手机
+========================================================= */
+
+@media (max-width: 600px) {
+
+    .ace-logo {
+        width: 210px;
+        height: 120px;
+
+        margin-bottom: 18px;
+    }
+
+    .title {
+        font-size: 30px;
+
+        letter-spacing: 2px;
+    }
+
+    .subtitle {
+        margin-top: 16px;
+
+        font-size: 15px;
+    }
+
+    .description {
+        max-width: 320px;
+
+        font-size: 9px;
+    }
+
+    .continue-button {
+        width: 155px;
+        height: 46px;
+
+        margin-top: 27px;
+
+        font-size: 14px;
+    }
+
+    .honesty {
+        margin-top: 17px;
+
+        font-size: 11px;
+
+        letter-spacing: 2px;
+    }
+}
+
+
+/* =========================================================
+   超小屏
+========================================================= */
+
+@media (max-width: 400px) {
+
+    .ace-logo {
+        width: 175px;
+        height: 100px;
+    }
+
+    .title {
+        font-size: 26px;
+    }
+
+    .subtitle {
+        font-size: 13px;
+    }
+
+    .continue-button {
+        width: 145px;
+        height: 44px;
+
+        font-size: 13px;
+    }
+
+    .honesty {
+        font-size: 10px;
+    }
+}
+
+</style>
+</head>
+
+
+<body>
+
+<main class="ace-screen" id="aceScreen">
+
+    <section class="ace-content">
+
+
+        <!-- =================================================
+             ACE LOGO
+        ================================================== -->
+
+        <svg
+            class="ace-logo"
+            viewBox="0 0 350 200"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-label="ACE"
+        >
+
+            <!-- =========================
+                 A
+            ========================== -->
+
+            <path
+                class="logo-white"
+                fill-rule="evenodd"
+                d="
+                    M28 151
+                    L83 43
+                    L112 43
+                    L163 151
+                    L137 151
+                    L124 123
+                    L67 123
+                    L54 151
+                    Z
+
+                    M78 100
+                    L113 100
+                    L96 66
+                    Z
+                "
+            />
+
+            <path
+                d="
+                    M63 115
+                    L128 115
+                "
+                fill="none"
+                stroke="#d9363e"
+                stroke-width="7"
+            />
+
+
+            <!-- =========================
+                 中间几何结构
+            ========================== -->
+
+            <path
+                class="logo-white"
+                fill-rule="evenodd"
+                d="
+                    M145 43
+                    L211 43
+                    L224 66
+                    L178 66
+                    L171 78
+                    L207 78
+                    L220 99
+                    L171 99
+                    L163 111
+                    L218 111
+                    L232 151
+                    L151 151
+                    L139 128
+                    L168 78
+                    Z
+                "
+            />
+
+            <path
+                class="logo-red"
+                d="
+                    M169 51
+                    L202 51
+                    L207 59
+                    L174 59
+                    Z
+
+                    M165 86
+                    L211 86
+                    L215 93
+                    L161 93
+                    Z
+
+                    M156 120
+                    L218 120
+                    L222 130
+                    L151 130
+                    Z
+                "
+            />
+
+
+            <!-- =========================
+                 E
+            ========================== -->
+
+            <path
+                class="logo-white"
+                fill-rule="evenodd"
+                d="
+                    M218 43
+                    L310 43
+                    L323 66
+                    L249 66
+                    L257 80
+                    L304 80
+                    L317 101
+                    L269 101
+                    L277 114
+                    L329 114
+                    L343 151
+                    L251 151
+                    L219 94
+                    L190 43
+                    Z
+                "
+            />
+
+            <path
+                class="logo-red"
+                d="
+                    M232 52
+                    L299 52
+                    L304 60
+                    L237 60
+                    Z
+
+                    M249 88
+                    L300 88
+                    L305 96
+                    L254 96
+                    Z
+
+                    M268 122
+                    L323 122
+                    L328 136
+                    L275 136
+                    Z
+                "
+            />
+
+
+            <!-- =========================
+                 底部几何延伸
+            ========================== -->
+
+            <path
+                class="logo-white"
+                d="
+                    M32 155
+                    L143 155
+                    L151 166
+                    L42 166
+                    Z
+                "
+            />
+
+            <path
+                class="logo-white"
+                d="
+                    M181 155
+                    L331 155
+                    L337 166
+                    L188 166
+                    Z
+                "
+            />
+
+        </svg>
+
+
+        <!-- =================================================
+             主标题
+        ================================================== -->
+
+        <div class="title">
+            检测到您切屏
+        </div>
+
+
+        <!-- =================================================
+             副标题
+        ================================================== -->
+
+        <div class="subtitle">
+            请返回考试
+        </div>
+
+
+        <!-- =================================================
+             说明
+        ================================================== -->
+
+        <div class="description">
+            检测到您当前离开了考试界面，请返回考试后继续。
+        </div>
+
+
+        <!-- =================================================
+             分割线
+        ================================================== -->
+
+        <div class="small-line"></div>
+
+
+        <!-- =================================================
+             继续按钮
+        ================================================== -->
+
+        <button
+            class="continue-button"
+            id="continueButton"
+            type="button"
+        >
+            <span class="button-text">
+                继续
+            </span>
+        </button>
+
+
+        <!-- =================================================
+             诚信考试
+        ================================================== -->
+
+        <div class="honesty">
+            诚信考试
+        </div>
+
+
+    </section>
+
+</main>
+
+
+<script>
+
+/* =========================================================
+   获取元素
+========================================================= */
+
+const screen =
+    document.getElementById("aceScreen");
+
+const button =
+    document.getElementById("continueButton");
+
+
+/* =========================================================
+   点击继续
+========================================================= */
+
+button.addEventListener("click", function () {
+
+    screen.classList.add("exit");
+
+    setTimeout(function () {
+        if (window.parent) { window.parent.postMessage("egg-close", "*"); }
+    }, 400);
+
+});
+
+
+/* =========================================================
+   ESC 快捷继续
+========================================================= */
+
+document.addEventListener("keydown", function (event) {
+
+    if (event.key === "Escape") {
+
+        screen.classList.add("exit");
+
+        setTimeout(function () {
+            if (window.parent) { window.parent.postMessage("egg-close", "*"); }
+        }, 400);
+
+    }
+
+});
+
+</script>
+
+</body>
+</html>

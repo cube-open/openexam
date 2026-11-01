@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编辑试卷 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }} · 后台</span>
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container narrow">
+        {% set sub = 'edit' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">编辑试卷</h1>
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <form method="post" class="stack-form">
+                <div class="field">
+                    <label>试卷标题</label>
+                    <input type="text" name="title" value="{{ exam['title'] }}" required>
+                </div>
+                <div class="field">
+                    <label>说明（可选）</label>
+                    <input type="text" name="description" value="{{ exam['description'] }}">
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>考试时长（分钟）</label>
+                        <input type="number" name="duration_minutes" value="{{ exam['duration_minutes'] }}" min="1">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label>开始时间（留空表示不限制）</label>
+                        <input type="datetime-local" name="start_at" value="{{ dt_local_input(exam['start_at']) }}">
+                    </div>
+                    <div class="field">
+                        <label>结束时间（留空表示不限制）</label>
+                        <input type="datetime-local" name="end_at" value="{{ dt_local_input(exam['end_at']) }}">
+                    </div>
+                </div>
+                <label class="check-row" style="margin-top:16px">
+                    <input type="checkbox" name="show_result" {{ 'checked' if exam['show_result'] else '' }}>
+                    交卷后允许学生查看成绩单（得分与 PDF）
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_answer" {{ 'checked' if exam['show_answer'] else '' }}>
+                    详情页显示正确答案
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_explanation" {{ 'checked' if exam['show_explanation'] else '' }}>
+                    详情页显示官方解析
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_original" {{ 'checked' if exam['show_original'] else '' }}>
+                    交卷后允许学生查看原卷（不带答案，与详情模式分开）
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="training_mode" {{ 'checked' if exam['training_mode'] else '' }}>
+                    允许学生添加笔记
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="enable_reflection" {{ 'checked' if exam['enable_reflection'] else '' }}>
+                    允许学生写反思（单独页面）
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_rank" {{ 'checked' if exam['show_rank'] else '' }}>
+                    监考页显示速度排名
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_score_monitor" {{ 'checked' if exam['show_score_monitor'] else '' }}>
+                    监考页显示成绩
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="enable_egg" {{ 'checked' if exam['enable_egg'] else '' }}>
+                    开启切屏处罚彩蛋（达到阈值弹「ACE 安全提示」）
+                </label>
+                <label class="check-row" style="margin-top:12px">
+                    <input type="checkbox" name="show_gongde" {{ 'checked' if exam['show_gongde'] else '' }}>
+                    显示右下角「功德」小彩蛋
+                </label>
+                <div class="form-row" style="margin-top:14px">
+                    <div class="field narrow">
+                        <label>切屏报警阈值（达到此数触发彩蛋）</label>
+                        <input type="number" name="violation_alert" value="{{ exam['violation_alert'] }}" min="1">
+                    </div>
+                </div>
+                <div class="field" style="margin-top:16px">
+                    <label>参与分组（不勾选任何分组 = 全员可参加）</label>
+                    <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:6px">
+                        {% for g in groups %}
+                        <label class="check-row" style="margin:0">
+                            <input type="checkbox" name="groups" value="{{ g['id'] }}" {{ 'checked' if g['id'] in selected_groups }}>
+                            {{ g['name'] }}
+                        </label>
+                        {% else %}
+                        <span class="muted small">暂无分组，可到「分组」页创建。</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div style="margin-top:18px; display:flex; gap:10px">
+                    <button type="submit" class="btn primary">保存修改</button>
+                    <a class="btn" href="{{ url_for('admin_dashboard') }}">返回</a>
+                </div>
+            </form>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

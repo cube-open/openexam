@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导入预览 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% set sub = 'questions' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">导入预览 <span class="muted small">· {{ exam['title'] }} · 来源：{{ payload['source'] }}</span></h1>
+
+        {% set items = payload['items'] %}
+        {% set ns = namespace(total=0, subs=0) %}
+        {% for it in items %}{% set ns.total = ns.total + 1 %}{% set ns.subs = ns.subs + it['subs']|length %}{% endfor %}
+
+        <div class="stat-grid">
+            <div class="stat-card"><span class="stat-num">{{ ns.total }}</span><span class="stat-label">待导入题目</span></div>
+            <div class="stat-card"><span class="stat-num">{{ ns.subs }}</span><span class="stat-label">子题</span></div>
+            <div class="stat-card"><span class="stat-num">{{ payload['dups'] }}</span><span class="stat-label">重复题</span></div>
+            <div class="stat-card"><span class="stat-num">{{ payload['errors']|length }}</span><span class="stat-label">问题行</span></div>
+        </div>
+
+        <section class="panel">
+            <h2>确认导入</h2>
+            <p class="muted small" style="margin-bottom:12px">
+                以下是解析结果，<b>确认后才会写入题库</b>。有问题可以取消，改完文件重新上传。
+            </p>
+            {% if payload['errors'] %}
+            <div class="flash error" style="display:block">
+                <div><b>{{ payload['errors']|length }} 行没能解析，将被跳过：</b></div>
+                <ol class="import-errors">
+                    {% for e in payload['errors'][:200] %}<li>{{ e }}</li>{% endfor %}
+                </ol>
+                {% if payload['errors']|length > 200 %}<div class="muted small">……其余 {{ payload['errors']|length - 200 }} 条从略</div>{% endif %}
+            </div>
+            {% endif %}
+
+            <form method="post" class="stack-form">
+                {% if payload['dups'] %}
+                <label class="check-row" style="margin:0">
+                    <input type="checkbox" name="skip_dups" value="1" checked>
+                    跳过 {{ payload['dups'] }} 道重复题（本试卷已有相同题型的相同题干；不勾选则全部导入）
+                </label>
+                {% endif %}
+                <div style="display:flex; gap:10px; margin-top:6px">
+                    <button type="submit" name="action" value="confirm" class="btn primary">确认导入</button>
+                    <button type="submit" name="action" value="cancel" class="btn">取消</button>
+                    <a class="btn" href="{{ url_for('admin_questions', exam_id=exam['id']) }}">返回题目管理</a>
+                </div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>题目明细（{{ ns.total }} 题{{ '，仅显示前 200 条' if ns.total > 200 else '' }}）</h2>
+            <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr><th>#</th><th>题型</th><th>题干</th><th>答案</th><th>分值</th><th>知识点</th><th>备注</th></tr>
+                </thead>
+                <tbody>
+                    {% for it in items[:200] %}
+                    <tr class="{{ 'row-dup' if it.get('dup') }}">
+                        <td data-label="#">{{ loop.index }}</td>
+                        <td data-label="题型">
+                            {{ {'choice':'单选','multi':'多选','judge':'判断','blank':'填空','group':'大题'}.get(it['type'], it['type']) }}
+                            {% if it.get('inferred') %}<span class="muted small">（识别）</span>{% endif %}
+                        </td>
+                        <td data-label="题干">{{ it['question'][:80] }}{% if it['question']|length > 80 %}…{% endif %}</td>
+                        <td data-label="答案">
+                            {% if it['type'] == 'judge' %}{{ '正确' if it['answer'] == 'A' else '错误' }}
+                            {% elif it['type'] == 'blank' %}{{ it['answer']|join(' | ') }}
+                            {% else %}{{ it['answer'] }}{% endif %}
+                        </td>
+                        <td data-label="分值">{{ it['score'] }}</td>
+                        <td data-label="知识点">{% for k in it['kps'] %}<span class="tag kp">{{ k }}</span>{% endfor %}</td>
+                        <td data-label="备注">{% if it.get('dup') %}<span class="tag amber">重复</span>{% endif %}
+                            {% if it['subs'] %}<span class="tag blue">{{ it['subs']|length }} 小题</span>{% endif %}</td>
+                    </tr>
+                    {% for s in it['subs'][:200] %}
+                    <tr class="q-sub-row {{ 'row-dup' if s.get('dup') }}">
+                        <td data-label="#"></td>
+                        <td data-label="题型">{{ {'choice':'单选','multi':'多选','judge':'判断','blank':'填空'}.get(s['type'], s['type']) }}</td>
+                        <td data-label="题干" class="sub-indent">{{ s['question'][:80] }}{% if s['question']|length > 80 %}…{% endif %}</td>
+                        <td data-label="答案">
+                            {% if s['type'] == 'judge' %}{{ '正确' if s['answer'] == 'A' else '错误' }}
+                            {% elif s['type'] == 'blank' %}{{ s['answer']|join(' | ') }}
+                            {% else %}{{ s['answer'] }}{% endif %}
+                        </td>
+                        <td data-label="分值">{{ s['score'] }}</td>
+                        <td data-label="知识点">{% for k in s['kps'] %}<span class="tag kp">{{ k }}</span>{% endfor %}</td>
+                        <td data-label="备注">{% if s.get('dup') %}<span class="tag amber">重复</span>{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

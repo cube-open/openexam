@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错题本 · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    {% set active = 'wrong' %}
+    {% include '_topbar_student.html' %}
+
+    <main class="container">
+        <div class="page-head">
+            <h1>我的错题本</h1>
+            <p class="muted">自动收集历次考试中没拿满分的题目，按考试倒序排列</p>
+        </div>
+
+        {% if total %}
+        <section class="panel">
+            <div class="stat-chips">
+                <div class="stat-card">
+                    <span class="stat-num">{{ total }}</span>
+                    <span class="stat-label">道错题</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-num">{{ groups|length }}</span>
+                    <span class="stat-label">场考试</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-num">{{ kp_summary|length }}</span>
+                    <span class="stat-label">涉及知识点</span>
+                </div>
+            </div>
+
+            {% if kp_summary %}
+            <h2 style="margin-top:20px">最常错的知识点</h2>
+            {% set top = kp_summary[0]['count'] %}
+            {% for kp in kp_summary %}
+            <div class="kp-item">
+                <div class="kp-top">
+                    <span class="kp-name">{{ kp['name'] }}</span>
+                    <span class="kp-rate rate-bad">{{ kp['count'] }} 题</span>
+                </div>
+                <div class="bar-track">
+                    <div class="bar-fill bar-bad" style="width:{{ (kp['count'] / top * 100)|round|int }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </section>
+
+        {% for group in groups %}
+        <section class="panel">
+            <h2>{{ group['title'] }}</h2>
+            <p class="muted small">交卷时间：{{ fmt_ts(group['submitted_at']) }} · 错题 {{ group['items']|length }} 道</p>
+
+            {% for it in group['items'] %}
+            <div class="review-item">
+                <div class="q-head">
+                    <span class="tag gray">{{ it['type_label'] }}</span>
+                    <div class="q-text q-md">{{ it['question'] }}</div>
+                    <span class="q-score">{{ it['awarded'] }} / {{ it['score'] }} 分</span>
+                </div>
+
+                {% if it['type'] in ('choice', 'judge', 'multi') and it['options'] %}
+                <div class="r-options">
+                    {% for opt in it['options'] %}
+                    <div class="r-option {{ 'is-answer' if group['show_answer'] and 'ABCDEFGH'[loop.index0] in it['answer'] }}">
+                        {{ 'ABCDEFGH'[loop.index0] }}. {{ opt }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="r-answer">
+                    你的答案：<strong>{{ it['given'] if it['given'] else '（未作答）' }}</strong>
+                    {% if group['show_answer'] %}
+                    <span class="correct-answer">正确答案：{{ it['answer_display'] }}</span>
+                    {% endif %}
+                </div>
+
+                {% if group['show_explanation'] and it['explanation'] %}
+                <div class="explanation">
+                    <div class="explanation-title">官方解析</div>
+                    <div class="markdown-body">{{ it['explanation'] }}</div>
+                </div>
+                {% endif %}
+
+                {% if it['kp'] %}
+                <div class="q-meta">
+                    {% for name in it['kp'] %}<span class="tag gray">{{ name }}</span>{% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </section>
+        {% endfor %}
+
+        {% else %}
+        <div class="empty-state">
+            <h2>还没有错题</h2>
+            <p class="muted">参加考试并交卷后，做错的题目会自动收集到这里。</p>
+            <p style="margin-top:16px"><a class="btn primary" href="{{ url_for('dashboard') }}">去看看有什么考试</a></p>
+        </div>
+        {% endif %}
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.q-md, .markdown-body').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

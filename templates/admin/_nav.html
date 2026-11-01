@@ -1,0 +1,39 @@
+<nav class="admin-nav">
+    <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if active == 'exams' }}">试卷</a>
+    {% if can('user.view') %}
+    <a href="{{ url_for('admin_students') }}" class="{{ 'active' if active == 'students' }}">学生</a>
+    <a href="{{ url_for('admin_groups') }}" class="{{ 'active' if active == 'groups' }}">分组</a>
+    {% endif %}
+    {% if can('bank.manage') %}
+    <a href="{{ url_for('admin_knowledge_points') }}" class="{{ 'active' if active == 'kps' }}">知识点</a>
+    {% endif %}
+    {% if can('org.manage') %}
+    <a href="{{ url_for('admin_admins') }}" class="{{ 'active' if active == 'admins' }}">账号与权限</a>
+    {% endif %}
+    {% if can('system.settings') %}
+    <a href="{{ url_for('admin_ips') }}" class="{{ 'active' if active == 'ips' }}">封禁 IP</a>
+    <a href="{{ url_for('admin_data') }}" class="{{ 'active' if active == 'data' }}">数据与备份</a>
+    {% endif %}
+    {% if can('system.audit') %}
+    <a href="{{ url_for('admin_logins') }}" class="{{ 'active' if active == 'logins' }}">登录日志</a>
+    <a href="{{ url_for('admin_audit') }}" class="{{ 'active' if active == 'audit' }}">操作审计</a>
+    {% endif %}
+    <a href="{{ url_for('admin_password') }}" class="{{ 'active' if active == 'password' }}">修改密码</a>
+</nav>
+
+<div class="admin-sidebar-foot">
+    <button type="button" class="sidebar-collapse" title="收起侧栏，留出更多空间">
+        <span class="chev">«</span> 收起侧栏
+    </button>
+</div>
+
+{% if current_admin %}
+<div class="admin-user">
+    <span class="admin-avatar">{{ current_admin['username'][0]|upper }}</span>
+    <span class="admin-user-meta">
+        <span class="admin-user-name">{{ current_admin['username'] }}</span>
+        <span class="admin-user-role">{{ current_admin['role_name'] or '管理员' }}</span>
+    </span>
+    <a href="{{ url_for('admin_logout') }}" class="nav-exit" title="退出登录">退出</a>
+</div>
+{% endif %}

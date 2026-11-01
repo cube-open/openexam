@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成绩查询 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% set sub = 'results' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">{{ exam['title'] }} <span class="muted small">（满分 {{ total }}）</span></h1>
+        {% include '_flash.html' %}
+
+        <div style="margin: 4px 0 16px; display:flex; gap:10px; flex-wrap:wrap">
+            <a class="btn primary" href="{{ url_for('admin_lecture', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>讲课模式
+            </a>
+            <a class="btn" href="{{ url_for('admin_stats', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"></path><path d="M12 20V4"></path><path d="M6 20v-6"></path></svg>数据统计
+            </a>
+            <a class="btn" href="{{ url_for('admin_monitor', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>实时监考
+            </a>
+            <button id="btn-regrade" class="btn">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>重新算分
+            </button>
+            <a class="btn" href="{{ url_for('admin_export_results', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>导出成绩单（Excel）
+            </a>
+            <a class="btn" href="{{ url_for('admin_export_pdf_zip', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>批量导出PDF（ZIP）
+            </a>
+            {% if exam['enable_reflection'] %}
+            <a class="btn" href="{{ url_for('admin_reflections', exam_id=exam['id']) }}">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>反思汇总
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- 成功提示 -->
+        <div id="regrade-toast" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#10b981;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+
+        <script>
+            document.getElementById('btn-regrade').addEventListener('click', function () {
+                if (!confirm('确定要重新计算所有已交卷学生的成绩吗？')) return;
+                var btn = document.getElementById('btn-regrade');
+                btn.disabled = true;
+                btn.textContent = '计算中…';
+                fetch("{{ url_for('admin_regrade', exam_id=exam['id']) }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                }).then(function (r) { return r.json(); })
+                  .then(function (d) {
+                      if (d.ok) {
+                          var toast = document.getElementById('regrade-toast');
+                          toast.textContent = '已重新计算 ' + d.count + ' 名学生的成绩';
+                          toast.style.display = 'block';
+                          setTimeout(function () { toast.style.display = 'none'; }, 3000);
+                          setTimeout(function () { location.reload(); }, 1000);
+                      } else {
+                          alert(d.msg || '操作失败');
+                      }
+                  })
+                  .catch(function () { alert('网络异常'); })
+                  .then(function () { btn.disabled = false; btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>重新算分'; });
+            });
+        </script>
+
+        <section class="panel">
+            <div style="margin-bottom:12px">
+                <input type="text" id="student-search" placeholder="搜索学生姓名 / 学号…" autocomplete="off"
+                       style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;width:260px">
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>名次</th><th>姓名</th><th>学号</th><th>得分</th><th>切屏</th><th>笔记</th><th>反思</th>
+                        <th>交卷方式</th><th>开始时间</th><th>交卷时间</th><th class="ta-r">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="student-rows">
+                    {% for r in rows %}
+                    <tr>
+                        <td data-label="名次" class="muted">{{ loop.index if r['submitted_at'] else '—' }}</td>
+                        <td data-label="姓名">{{ r['name'] }}</td>
+                        <td data-label="学号">{{ r['student_no'] }}</td>
+                        <td data-label="得分">{{ r['score'] if r['score'] is not none else '—' }}</td>
+                        <td data-label="切屏" class="{{ 'red' if r['violations'] >= exam['max_violations'] else '' }}">{{ r['violations'] }}</td>
+                        <td data-label="笔记">
+                            {% if r['notes'] and r['notes'] not in ('', '{}') %}
+                            <span class="tag amber">有笔记</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td data-label="反思">
+                            {% if r['reflection'] %}
+                            <span class="tag amber">有反思</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td data-label="交卷方式">
+                            {% if r['submitted_at'] %}
+                                <span class="tag {{ 'red' if r['auto_submitted'] else 'green' }}">
+                                    {{ '超时自动交卷' if r['auto_submitted'] else '正常交卷' }}</span>
+                                {% if r['overtime_seconds'] %}
+                                    <span class="tag amber">超时 {{ r['overtime_seconds'] }} 秒</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="tag amber">进行中</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="开始时间" class="muted small">{{ fmt_ts(r['started_at']) }}</td>
+                        <td data-label="交卷时间" class="muted small">{{ fmt_ts(r['submitted_at']) }}</td>
+                        <td data-label="操作" class="ta-r ops">
+                            {% if r['submitted_at'] %}
+                            <a class="btn sm" href="{{ url_for('admin_result_view', rid=r['id']) }}">查看答卷</a>
+                            <a class="btn sm" href="{{ url_for('admin_grade', rid=r['id']) }}">改分</a>
+                            <a class="btn sm" href="{{ url_for('admin_result_pdf', rid=r['id']) }}">下载PDF</a>
+                            {% endif %}
+                            <form method="post" action="{{ url_for('admin_reset_result', rid=r['id']) }}"
+                                  onsubmit="return confirm('清除该学生在本试卷的作答记录，允许其重新考试？');" style="display:inline">
+                                <button type="submit" class="btn sm">一键重考</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="名次" colspan="11" class="empty">暂无作答记录</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+
+    <script>
+        var search = document.getElementById('student-search');
+        if (search) {
+            search.addEventListener('input', function () {
+                var kw = search.value.trim().toLowerCase();
+                document.querySelectorAll('#student-rows tr').forEach(function (tr) {
+                    var name = tr.children[1] ? tr.children[1].textContent : '';
+                    var no = tr.children[2] ? tr.children[2].textContent : '';
+                    tr.style.display = (name + ' ' + no).toLowerCase().indexOf(kw) >= 0 ? '' : 'none';
+                });
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

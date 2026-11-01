@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>试卷管理 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% include '_flash.html' %}
+
+        <div class="stat-grid">
+            <div class="stat-card"><span class="stat-num">{{ stats['exams'] }}</span><span class="stat-label">试卷</span></div>
+            <div class="stat-card"><span class="stat-num">{{ stats['students'] }}</span><span class="stat-label">学生</span></div>
+            <div class="stat-card"><span class="stat-num">{{ stats['questions'] }}</span><span class="stat-label">题目</span></div>
+            <div class="stat-card"><span class="stat-num">{{ stats['submitted'] }}</span><span class="stat-label">已交卷</span></div>
+        </div>
+
+        <section class="panel">
+            <h2>新建试卷</h2>
+            <form method="post" action="{{ url_for('admin_create_exam') }}" class="inline-form">
+                <input type="text" name="title" placeholder="试卷标题" required>
+                <input type="text" name="description" placeholder="说明（可选）">
+                <input type="number" name="duration_minutes" value="30" min="1" title="考试时长（分钟）">
+                <input type="datetime-local" name="start_at" title="开始时间（可选）">
+                <input type="datetime-local" name="end_at" title="结束时间（可选）">
+                <label class="inline-check" title="不勾选则学生交卷后看不到成绩与解析">
+                    <input type="checkbox" name="show_result" checked> 交卷后显示成绩
+                </label>
+                <button type="submit" class="btn primary">创建</button>
+            </form>
+            <p class="muted small" style="margin-top:8px">留空开始/结束时间表示不限制；设置后学生只能在时间窗口内进入考试，窗口外无法进入或交卷。不勾选「交卷后显示成绩」则等老师手动开放。</p>
+        </section>
+
+        <section class="panel">
+            <h2>试卷列表</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th><th>标题</th><th>时长</th><th>考试时间</th>
+                        <th>题目</th><th>作答人数</th><th class="ta-r">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in exams %}
+                    <tr>
+                        <td data-label="ID">{{ e['id'] }}</td>
+                        <td data-label="标题">{{ e['title'] }}</td>
+                        <td data-label="时长">{{ e['duration_minutes'] }} 分</td>
+                        <td data-label="考试时间" class="muted small">
+                            {{ fmt_ts(e['start_at']) if e['start_at'] else '不限' }} ~
+                            {{ fmt_ts(e['end_at']) if e['end_at'] else '不限' }}
+                        </td>
+                        <td data-label="题目">{{ e['q_count'] }}</td>
+                        <td data-label="作答人数">{{ e['r_count'] }}</td>
+                        <td data-label="操作" class="ta-r ops">
+                            <a class="btn sm" href="{{ url_for('admin_edit_exam', exam_id=e['id']) }}">详情</a>
+                            <form method="post" action="{{ url_for('admin_delete_exam', exam_id=e['id']) }}"
+                                  onsubmit="return confirm('确定删除该试卷及其所有题目和成绩？');" style="display:inline">
+                                <button type="submit" class="btn sm danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="ID" colspan="7" class="empty">暂无试卷</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

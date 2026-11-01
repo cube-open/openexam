@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exam['title'] }} · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='katex.min.css') }}">
+</head>
+<body class="exam-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <header class="exam-topbar">
+        <div class="exam-left">
+            {% if logo_url %}<span class="brand-logo sm"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="exam-title">{{ exam['title'] }}</span>
+            <span class="exam-student">{{ stu['name'] }} · {{ client_ip }}</span>
+        </div>
+        <div class="exam-right">
+            {% if nodetect %}<span class="tag amber" title="切屏检测已禁用">检测已关</span>{% endif %}
+            <button type="button" id="btn-clear-cache" class="btn sm ghost" title="清除本地答题缓存">清除缓存</button>
+            <span id="violation" class="violation"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span id="violation-count">切屏警告 0 次</span></span>
+            <span id="answered-progress" class="answered-progress">已答 0 / {{ questions|length }}</span>
+            <span id="timer" class="timer">--:--</span>
+            <button id="btn-fullscreen" class="btn sm ghost" title="切换全屏"></button>
+        </div>
+    </header>
+
+    <!-- 全屏建议条（非阻塞，可关闭） -->
+    <div id="fs-banner" class="fs-banner">
+        <span class="meta-item"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>建议全屏作答，切出窗口会被记为警告</span>
+        <button id="btn-fs" class="btn sm primary">进入全屏</button>
+        <button id="btn-fs-close" class="btn sm ghost">暂不</button>
+    </div>
+
+    <!-- 切屏警告提示 -->
+    <div id="violation-toast" class="toast danger">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <span id="violation-toast-msg"></span>
+    </div>
+
+    <form id="exam-form">
+        <div class="exam-layout">
+        <div class="paper paper-wide">
+            <div class="paper-head">
+                <h2>{{ exam['title'] }}</h2>
+                {% if exam['description'] %}<p class="muted">{{ exam['description'] }}</p>{% endif %}
+                <p class="muted small">答案会即时保存到本地并定时上传，刷新或断线不丢失</p>
+            </div>
+
+            {% set ns = namespace(qno=0) %}
+            {% for q in questions %}
+            {% if q['type'] == 'group' %}
+            <!-- 大题：共享背景 + 子题 -->
+            <div class="q-group">
+                <div class="q-group-context q-md">{{ q['question'] }}</div>
+                <div class="q-group-children">
+                    {% for sub in q['children'] %}
+                    {% set ns.qno = ns.qno + 1 %}
+                    <div class="question q-sub-question" data-id="{{ sub['id'] }}" data-type="{{ sub['type'] }}">
+                        <div class="q-head">
+                            <span class="q-no">{{ ns.qno }}</span>
+                            <button type="button" class="q-mark" data-id="{{ sub['id'] }}" title="标记此题">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                            </button>
+                            <div class="q-text q-md-inline">{{ sub['question'] }}</div>
+                            <span class="q-score">{{ sub['score'] }} 分</span>
+                        </div>
+                        {% if sub['type'] == 'choice' or sub['type'] == 'judge' %}
+                        <div class="options">
+                            {% for opt in sub['options'] %}
+                            <label class="option">
+                                <input type="radio" name="q_{{ sub['id'] }}" value="{{ 'ABCDEFGH'[loop.index0] }}">
+                                <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                                <span class="opt-text q-md-inline">{{ opt }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% elif sub['type'] == 'multi' %}
+                        <div class="options">
+                            {% for opt in sub['options'] %}
+                            <label class="option">
+                                <input type="checkbox" name="q_{{ sub['id'] }}" value="{{ 'ABCDEFGH'[loop.index0] }}">
+                                <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                                <span class="opt-text q-md-inline">{{ opt }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <input type="text" class="blank-input" name="q_{{ sub['id'] }}" placeholder="请填写答案" autocomplete="off">
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            {% set ns.qno = ns.qno + 1 %}
+            <!-- 普通题 -->
+            <div class="question" data-id="{{ q['id'] }}" data-type="{{ q['type'] }}">
+                <div class="q-head">
+                    <span class="q-no">{{ ns.qno }}</span>
+                    <button type="button" class="q-mark" data-id="{{ q['id'] }}" title="标记此题">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+                    </button>
+                    <div class="q-text q-md">{{ q['question'] }}</div>
+                    <span class="q-score">{{ q['score'] }} 分</span>
+                </div>
+                {% if q['type'] == 'choice' or q['type'] == 'judge' %}
+                <div class="options">
+                    {% for opt in q['options'] %}
+                    <label class="option">
+                        <input type="radio" name="q_{{ q['id'] }}" value="{{ 'ABCDEFGH'[loop.index0] }}">
+                        <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                        <span class="opt-text q-md-inline">{{ opt }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% elif q['type'] == 'multi' %}
+                <div class="options">
+                    {% for opt in q['options'] %}
+                    <label class="option">
+                        <input type="checkbox" name="q_{{ q['id'] }}" value="{{ 'ABCDEFGH'[loop.index0] }}">
+                        <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                        <span class="opt-text q-md-inline">{{ opt }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <input type="text" class="blank-input" name="q_{{ q['id'] }}" placeholder="请填写答案" autocomplete="off">
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <aside class="exam-sheet">
+            <div class="sheet-title">答题卡</div>
+            <div class="sheet-progress" id="sheet-progress">已答 0 / {{ questions|length }}</div>
+            <label class="check-row" style="margin-bottom:10px">
+                <input type="checkbox" id="filter-marked"> 只看标记
+            </label>
+            <div class="sheet-grid" id="sheet-grid"></div>
+            <button type="button" id="btn-submit" class="btn primary submit-btn">交 卷</button>
+            <img src="{{ url_for('static', filename='meme.png') }}" alt="加油" class="sheet-meme">
+        </aside>
+        </div>
+    </form>
+
+    <!-- 处罚彩蛋（切屏达到阈值一次性触发） -->
+    <div id="egg-overlay" class="egg-overlay">
+        <iframe id="egg-frame" src="{{ url_for('static', filename='egg.html') }}" frameborder="0"></iframe>
+    </div>
+
+    {% if exam['show_gongde'] %}
+    <div class="muyu-widget">
+        <button id="gongde-btn" class="gongde-btn" title="功德无量">
+            <svg class="muyu-svg" viewBox="0 0 120 150" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <radialGradient id="wood" cx="35%" cy="30%" r="80%">
+                        <stop offset="0%" stop-color="#e39a5a"/>
+                        <stop offset="55%" stop-color="#b5651d"/>
+                        <stop offset="100%" stop-color="#7a3d10"/>
+                    </radialGradient>
+                </defs>
+                <path d="M60 10 C50 4 36 12 32 26 C44 22 54 24 60 30 Z" fill="#8a4a1d"/>
+                <ellipse cx="60" cy="86" rx="46" ry="42" fill="url(#wood)"/>
+                <ellipse cx="60" cy="86" rx="40" ry="36" fill="none" stroke="#5a2a08" stroke-width="1.5" opacity="0.4"/>
+                <circle cx="45" cy="72" r="4.5" fill="#3a1a05"/>
+                <circle cx="75" cy="72" r="4.5" fill="#3a1a05"/>
+                <path d="M34 96 Q60 108 86 96" fill="none" stroke="#3a1a05" stroke-width="7" stroke-linecap="round"/>
+                <path d="M34 96 Q60 106 86 96" fill="none" stroke="#5a2a08" stroke-width="2" opacity="0.5"/>
+            </svg>
+        </button>
+        <div class="gongde-count" id="gongde-count">功德 0</div>
+    </div>
+    {% endif %}
+
+    <!-- 自定义确认弹窗（替代 alert/confirm，避免打破全屏） -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <h3 id="modal-title">提示</h3>
+            <p id="modal-msg"></p>
+            <input type="text" id="modal-input" class="modal-input" style="display:none" placeholder="">
+            <div class="modal-actions">
+                <button id="modal-cancel" class="btn">取消</button>
+                <button id="modal-ok" class="btn primary">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.EXAM_CONFIG = {
+            examId: {{ exam['id'] }},
+            remaining: {{ remaining }},
+            violations: {{ violations }},
+            alertThreshold: {{ exam['violation_alert'] }},
+            enableEgg: {{ exam['enable_egg'] }},
+            nodetect: {{ 'true' if nodetect else 'false' }},
+            savedAnswers: {{ saved_answers | safe }},
+            saveUrl: "{{ url_for('api_save') }}",
+            violationUrl: "{{ url_for('api_violation') }}",
+            heartbeatUrl: "{{ url_for('api_heartbeat') }}",
+            submitUrl: "{{ url_for('submit_exam', exam_id=exam['id']) }}"
+        };
+    </script>
+    <script src="{{ url_for('static', filename='exam.js') }}"></script>
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='katex.min.js') }}"></script>
+    <script>
+        function addLineNumbers() {
+            document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                if (code.getAttribute('data-numbered')) return;
+                code.setAttribute('data-numbered', '1');
+                code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                    return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                }).join('');
+            });
+        }
+        function renderMath(root) {
+            if (!window.katex) return;
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(function (node) {
+                var text = node.textContent;
+                // 跳过不含 $ 的文本
+                if (text.indexOf('$') === -1) return;
+                // 块级公式 $$...$$
+                var parts = text.split('$$');
+                if (parts.length >= 3) {
+                    var html = '';
+                    for (var i = 0; i < parts.length; i++) {
+                        if (i % 2 === 0) html += parts[i];
+                        else {
+                            try { html += katex.renderToString(parts[i], {displayMode: true, throwOnError: false}); }
+                            catch (e) { html += parts[i]; }
+                        }
+                    }
+                    var span = document.createElement('span');
+                    span.innerHTML = html;
+                    node.parentNode.replaceChild(span, node);
+                    return;
+                }
+                // 行内公式 $...$
+                parts = text.split('$');
+                if (parts.length >= 3) {
+                    var html = '';
+                    for (var i = 0; i < parts.length; i++) {
+                        if (i % 2 === 0) html += parts[i];
+                        else {
+                            try { html += katex.renderToString(parts[i], {displayMode: false, throwOnError: false}); }
+                            catch (e) { html += parts[i]; }
+                        }
+                    }
+                    var span = document.createElement('span');
+                    span.innerHTML = html;
+                    node.parentNode.replaceChild(span, node);
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            // 先渲染 markdown
+            document.querySelectorAll('.q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            document.querySelectorAll('.q-md-inline').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parseInline(src); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+            // 再渲染数学公式
+            renderMath(document.body);
+        });
+    </script>
+</body>
+</html>

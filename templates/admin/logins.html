@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录日志 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'logins' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        <h1 class="page-title">登录日志</h1>
+        <div style="margin:4px 0 16px">
+            <input type="text" id="log-search" placeholder="搜索姓名 / 用户名 / IP…" autocomplete="off"
+                   style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;width:280px">
+        </div>
+
+        <section class="panel">
+            <table class="table">
+                <thead>
+                    <tr><th>登录时间</th><th>姓名</th><th>用户名</th><th>IP</th></tr>
+                </thead>
+                <tbody id="log-rows">
+                    {% for r in rows %}
+                    <tr>
+                        <td data-label="登录时间" class="muted small">{{ fmt_ts(r['login_at']) }}</td>
+                        <td data-label="姓名">{{ r['name'] }}</td>
+                        <td data-label="用户名">{{ r['username'] }}</td>
+                        <td data-label="IP">{{ r['ip'] }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="登录时间" colspan="4" class="empty">暂无登录记录</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="muted small" style="margin-top:8px">仅显示最近 1000 条记录</p>
+        </section>
+    </main>
+
+    <script>
+        var search = document.getElementById('log-search');
+        if (search) {
+            search.addEventListener('input', function () {
+                var kw = search.value.trim().toLowerCase();
+                document.querySelectorAll('#log-rows tr').forEach(function (tr) {
+                    tr.style.display = tr.textContent.toLowerCase().indexOf(kw) >= 0 ? '' : 'none';
+                });
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

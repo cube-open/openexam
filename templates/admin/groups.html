@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分组管理 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'groups' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <h2>新建分组（班级）</h2>
+            <form method="post" class="inline-form">
+                <input type="hidden" name="action" value="create">
+                <input type="text" name="name" placeholder="例如：1 班" required>
+                <button type="submit" class="btn primary">创建</button>
+            </form>
+            <p class="muted small" style="margin-top:8px">分组用于分班；学生可在「学生」页分配到分组，考试可限定参与分组（不限定则全员可参加）。</p>
+        </section>
+
+        <section class="panel">
+            <h2>分组列表（{{ groups|length }}）</h2>
+            <table class="table">
+                <thead>
+                    <tr><th>ID</th><th>分组名</th><th>学生数</th><th class="ta-r">操作</th></tr>
+                </thead>
+                <tbody>
+                    {% for g in groups %}
+                    <tr>
+                        <td data-label="ID">{{ g['id'] }}</td>
+                        <td data-label="分组名">
+                            <form method="post" style="display:inline-flex; gap:6px; align-items:center">
+                                <input type="hidden" name="action" value="rename">
+                                <input type="hidden" name="group_id" value="{{ g['id'] }}">
+                                <input type="text" name="name" value="{{ g['name'] }}"
+                                       style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                                <button type="submit" class="btn sm">重命名</button>
+                            </form>
+                        </td>
+                        <td data-label="学生数">{{ g['cnt'] }}</td>
+                        <td data-label="操作" class="ta-r">
+                            <form method="post" onsubmit="return confirm('确定删除该分组？其学生将移入未分组。');" style="display:inline">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="group_id" value="{{ g['id'] }}">
+                                <button type="submit" class="btn sm danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="ID" colspan="4" class="empty">暂无分组</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <p class="muted small" style="margin-top:8px">未分组学生：{{ ungrouped }} 人（可在「学生」页分配到分组）</p>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

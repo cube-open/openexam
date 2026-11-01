@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的成长 · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='chart.min.js') }}"></script>
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    {% set active = 'growth' %}
+    {% include '_topbar_student.html' %}
+
+    <main class="container">
+        <div class="page-head">
+            <h1>我的成长</h1>
+            <p class="muted">查看你的排名变化趋势和知识点掌握情况</p>
+        </div>
+
+        {% if history|length < 2 %}
+        <div class="flash info">你参加的考试不足 2 场，排名趋势图暂不可用。请参加更多考试后查看。</div>
+        {% endif %}
+
+        <!-- 排名趋势图 -->
+        <section class="panel">
+            <h2>排名趋势</h2>
+            {% if history|length >= 2 %}
+            <div style="position:relative; height:320px; margin-top:12px">
+                <canvas id="rankChart"></canvas>
+            </div>
+            {% else %}
+            <p class="muted">数据不足，至少需要 2 场考试才能绘制趋势图。</p>
+            {% endif %}
+        </section>
+
+        <!-- 各次考试概览 -->
+        <section class="panel">
+            <h2>考试记录（{{ history|length }} 场）</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>考试</th>
+                        <th>得分</th>
+                        <th>排名</th>
+                        <th>参加人数</th>
+                        <th>排名变化</th>
+                        <th>提交时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    <tr>
+                        <td data-label="#">{{ loop.index }}</td>
+                        <td data-label="考试">{{ h['title'] }}</td>
+                        <td data-label="得分">{{ h['score'] }}</td>
+                        <td data-label="排名"><strong>{{ h['rank'] }}</strong> / {{ h['total'] }}</td>
+                        <td data-label="参加人数">{{ h['total'] }}</td>
+                        <td data-label="排名变化">
+                            {% if loop.index0 == 0 %}
+                                <span class="muted">—</span>
+                            {% else %}
+                                {% set prev = history[loop.index0 - 1] %}
+                                {% set diff = prev['rank'] - h['rank'] %}
+                                {% if diff > 0 %}
+                                    <span class="rank-up">↑ {{ diff }}</span>
+                                {% elif diff < 0 %}
+                                    <span class="rank-down">↓ {{ -diff }}</span>
+                                {% else %}
+                                    <span class="rank-same">→ 0</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td data-label="提交时间">{{ fmt_ts(h['submitted_at']) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td data-label="#" colspan="7" class="empty">暂无考试记录</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 知识点薄弱分析 -->
+        <section class="panel">
+            <h2>知识点分析</h2>
+            {% if kp_analysis %}
+            <p class="muted small" style="margin-bottom:12px">按正确率从低到高排列，正确率越低说明该知识点越薄弱，需要加强练习。</p>
+            {% for kp in kp_analysis %}
+            <div class="kp-item">
+                <div class="kp-top">
+                    <span class="kp-name">{{ kp['name'] }}</span>
+                    <span class="kp-rate {% if kp['rate'] < 60 %}rate-bad{% elif kp['rate'] < 80 %}rate-mid{% else %}rate-good{% endif %}">
+                        {{ kp['rate'] }}%
+                    </span>
+                </div>
+                <div class="bar-track">
+                    <div class="bar-fill {% if kp['rate'] < 60 %}bar-bad{% elif kp['rate'] < 80 %}bar-mid{% else %}bar-good{% endif %}"
+                         style="width:{{ kp['rate'] }}%"></div>
+                </div>
+                <span class="kp-detail muted small">共 {{ kp['total'] }} 题次，正确 {{ kp['correct'] }} 题次</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="muted">暂无知识点数据。</p>
+            {% endif %}
+        </section>
+    </main>
+
+    {% if history|length >= 2 %}
+    <script>
+        var labels = [{% for h in history %}'{{ h["title"] }}'{% if not loop.last %},{% endif %}{% endfor %}];
+        var ranks = [{% for h in history %}{{ h["rank"] }}{% if not loop.last %},{% endif %}{% endfor %}];
+        var totals = [{% for h in history %}{{ h["total"] }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+        var ctx = document.getElementById('rankChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '排名',
+                    data: ranks,
+                    borderColor: '#0284c7',
+                    backgroundColor: 'rgba(2, 132, 199, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#0284c7',
+                }, {
+                    label: '参加人数',
+                    data: totals,
+                    borderColor: '#cbd5e1',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#cbd5e1',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        reverse: true,
+                        min: 1,
+                        title: { display: true, text: '排名（越小越好）' },
+                        ticks: { stepSize: 1 },
+                    }
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                }
+            }
+        });
+    </script>
+    {% endif %}
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

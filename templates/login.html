@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}">
+    <div class="auth-card">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        <p class="sub">登录后选择试卷，进入全屏作答</p>
+
+        {% include '_flash.html' %}
+
+        <form method="post">
+            <label>用户名</label>
+            <input type="text" name="username" required autocomplete="username" placeholder="请输入用户名">
+            <label>密码</label>
+            <input type="password" name="password" required autocomplete="current-password" placeholder="请输入密码">
+            <button type="submit" class="btn primary block">登 录</button>
+        </form>
+
+        <p class="auth-note">账号由管理员统一分配，如需开通请联系老师</p>
+    </div>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

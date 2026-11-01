@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监考 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% set sub = 'monitor' %}
+        {% include 'admin/_subnav.html' %}
+        <div class="monitor-head">
+            <h1 class="page-title" style="margin:0">{{ exam['title'] }} · 实时监考</h1>
+            <div class="monitor-tools">
+                <button id="btn-rank" class="btn sm"></button>
+                <button id="btn-score" class="btn sm"></button>
+                <button id="btn-time" class="btn sm"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:middle"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 修改时间</button>
+                <button id="btn-msg" class="btn sm primary"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;vertical-align:middle"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> 发送消息</button>
+                <span class="muted small" id="live-hint">每 5 秒自动刷新</span>
+            </div>
+        </div>
+
+        <!-- 切屏报警横幅 -->
+        <div id="alert-banner" class="alert-banner" style="display:none"></div>
+
+        <!-- 发送消息模态框 -->
+        <div id="msg-modal" class="modal-overlay" style="display:none">
+            <div class="modal" style="max-width:500px">
+                <h3><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> 发送消息提醒</h3>
+                <div style="margin-bottom:14px">
+                    <label class="muted small" style="display:block;margin-bottom:6px">消息内容</label>
+                    <textarea id="msg-content" rows="3" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;resize:vertical;box-sizing:border-box" placeholder="输入要发送给学生的提醒…"></textarea>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label class="muted small" style="display:block;margin-bottom:6px">接收学生</label>
+                    <div style="margin-bottom:8px">
+                        <label><input type="checkbox" id="msg-select-all"> 全选</label>
+                        <label style="margin-left:12px"><input type="radio" name="msg-scope" value="selected" checked> 已选学生</label>
+                        <label style="margin-left:12px"><input type="radio" name="msg-scope" value="all"> 全体考生</label>
+                    </div>
+                    <div id="msg-student-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+                </div>
+                <div class="modal-actions">
+                    <button id="msg-cancel" class="btn">取消</button>
+                    <button id="msg-send" class="btn primary">发送</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 发送成功提示 -->
+        <div id="msg-toast" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#10b981;color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15)"></div>
+
+        <div class="stat-grid" id="summary">
+            <div class="stat-card"><span class="stat-num" id="c-nostart">-</span><span class="stat-label">未开始</span></div>
+            <div class="stat-card"><span class="stat-num" id="c-doing">-</span><span class="stat-label">答题中</span></div>
+            <div class="stat-card"><span class="stat-num" id="c-done">-</span><span class="stat-label">已交卷</span></div>
+            <div class="stat-card"><span class="stat-num" id="c-total">-</span><span class="stat-label">总人数</span></div>
+        </div>
+
+        <section class="panel">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="rank-col">速度排名</th><th>姓名</th><th>学号</th><th>状态</th><th>在线</th>
+                        <th>剩余时间</th><th>答题进度</th><th class="score-col">得分</th><th>切屏</th>
+                    </tr>
+                </thead>
+                <tbody id="student-rows">
+                    <tr><td data-label="速度排名" colspan="9" class="empty">加载中…</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- 修改时间模态框 -->
+        <div id="time-modal" class="modal-overlay" style="display:none">
+            <div class="modal" style="max-width:500px">
+                <h3><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 修改答题时间</h3>
+                <div style="margin-bottom:14px">
+                    <label class="muted small" style="display:block;margin-bottom:6px">选择学生</label>
+                    <div style="margin-bottom:8px">
+                        <label><input type="checkbox" id="time-select-all"> 全选</label>
+                    </div>
+                    <div id="time-student-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+                </div>
+                <div style="margin-bottom:14px">
+                    <label class="muted small" style="display:block;margin-bottom:6px">操作类型</label>
+                    <div style="display:flex;gap:12px;margin-bottom:12px">
+                        <label><input type="radio" name="time-action" value="set" checked> 设置为</label>
+                        <label><input type="radio" name="time-action" value="add"> 增加</label>
+                        <label><input type="radio" name="time-action" value="reduce"> 减少</label>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <input type="number" id="time-minutes" min="0" max="999" value="5" style="width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px">
+                        <span>分钟</span>
+                    </div>
+                </div>
+                <div style="margin-bottom:16px">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                        <input type="checkbox" id="time-notify" checked>
+                        <span>通知学生时间已修改</span>
+                    </label>
+                </div>
+                <div class="modal-actions">
+                    <button id="time-cancel" class="btn">取消</button>
+                    <button id="time-ok" class="btn primary">确定</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        var redThreshold = {{ exam['max_violations'] }};
+        var alertThreshold = {{ exam['violation_alert'] }};
+        var showRank = {{ 1 if exam['show_rank'] else 0 }};
+        var showScore = {{ 1 if exam['show_score_monitor'] else 0 }};
+
+        function statusTag(s) {
+            if (s === '已交卷') return '<span class="tag green">已交卷</span>';
+            if (s === '答题中') return '<span class="tag amber">答题中</span>';
+            return '<span class="tag gray">未开始</span>';
+        }
+        function onlineTag(s) {
+            if (s.status === '答题中') {
+                return s.online ? '<span class="tag green">在线</span>' : '<span class="tag red">离线</span>';
+            }
+            return '—';
+        }
+
+        var btnRank = document.getElementById('btn-rank');
+        var btnScore = document.getElementById('btn-score');
+        function updateToggles() {
+            document.querySelectorAll('.score-col').forEach(function (el) { el.style.display = showScore ? '' : 'none'; });
+            document.querySelectorAll('.rank-col').forEach(function (el) { el.style.display = showRank ? '' : 'none'; });
+            btnRank.textContent = '速度排名：' + (showRank ? '开' : '关');
+            btnScore.textContent = '显示成绩：' + (showScore ? '开' : '关');
+        }
+        btnRank.addEventListener('click', function () { showRank = !showRank; updateToggles(); fetchLive(); });
+        btnScore.addEventListener('click', function () { showScore = !showScore; updateToggles(); });
+
+        function sortStudents(students) {
+            var arr = students.slice();
+            if (showRank) {
+                var order = { '已交卷': 0, '答题中': 1, '未开始': 2 };
+                arr.sort(function (a, b) {
+                    var oa = order[a.status], ob = order[b.status];
+                    if (oa !== ob) return oa - ob;
+                    if (a.status === '已交卷') return (a.submitted_at || 0) - (b.submitted_at || 0);
+                    if (a.status === '答题中') return (b.answered || 0) - (a.answered || 0);
+                    return String(a.student_no).localeCompare(String(b.student_no));
+                });
+            }
+            return arr;
+        }
+
+        function buildAlert(d) {
+            var over = d.students.filter(function (s) { return s.violations >= alertThreshold; });
+            var banner = document.getElementById('alert-banner');
+            if (!over.length) { banner.style.display = 'none'; return; }
+            var names = over.map(function (s) { return s.name + '(' + s.violations + '次)'; }).join('、');
+            banner.textContent = '⚠ 有 ' + over.length + ' 名学生切屏超过 ' + alertThreshold + ' 次：' + names;
+            banner.style.display = 'block';
+        }
+
+        function render(d) {
+            document.getElementById('c-nostart').textContent = d.students.filter(function (s) { return s.status === '未开始'; }).length;
+            document.getElementById('c-doing').textContent = d.students.filter(function (s) { return s.status === '答题中'; }).length;
+            document.getElementById('c-done').textContent = d.students.filter(function (s) { return s.status === '已交卷'; }).length;
+            document.getElementById('c-total').textContent = d.students.length;
+
+            var students = sortStudents(d.students);
+            var container = document.getElementById('student-rows');
+
+            // FLIP：记录每个学生当前行位置
+            var oldPos = {};
+            container.querySelectorAll('tr[data-key]').forEach(function (tr) {
+                oldPos[tr.getAttribute('data-key')] = tr.getBoundingClientRect().top;
+            });
+
+            var rows = students.map(function (s, i) {
+                var prog = (s.total > 0 ? Math.round(s.answered / s.total * 100) : 0);
+                var bar = '<div class="progress-track"><div class="progress-fill" style="width:' + prog + '%"></div></div>';
+                var score = (s.score === null || s.score === undefined) ? '—' : s.score;
+                var isRed = s.violations >= redThreshold;
+                var remaining = '--';
+                var remainingClass = '';
+                if (s.status === '答题中' && s.remaining > 0) {
+                    var rm = Math.floor(s.remaining / 60);
+                    var rs = s.remaining % 60;
+                    remaining = rm + ':' + String(rs).padStart(2, '0');
+                    if (s.remaining < 300) remainingClass = ' class="red"';
+                } else if (s.status === '已交卷') {
+                    remaining = '已交卷';
+                }
+                return '<tr data-key="' + s.student_no + '"' + (isRed ? ' class="row-warn"' : '') + '>' +
+                    '<td class="rank-col">' + (i + 1) + '</td>' +
+                    '<td>' + s.name + '</td>' +
+                    '<td>' + s.student_no + '</td>' +
+                    '<td>' + statusTag(s.status) + '</td>' +
+                    '<td>' + onlineTag(s) + '</td>' +
+                    '<td' + remainingClass + '>' + remaining + '</td>' +
+                    '<td style="min-width:160px">' + bar + '<span class="muted small">' + s.answered + ' / ' + s.total + '</span></td>' +
+                    '<td class="score-col">' + score + '</td>' +
+                    '<td class="' + (isRed ? 'red' : '') + '">' + s.violations + '</td>' +
+                    '</tr>';
+            }).join('');
+            container.innerHTML = rows;
+
+            // FLIP：名次变动的行从旧位置平滑平移到新位置
+            container.querySelectorAll('tr[data-key]').forEach(function (tr) {
+                var oldTop = oldPos[tr.getAttribute('data-key')];
+                if (oldTop === undefined) return;
+                var delta = oldTop - tr.getBoundingClientRect().top;
+                if (delta !== 0) {
+                    tr.style.transition = 'none';
+                    tr.style.transform = 'translateY(' + delta + 'px)';
+                    void tr.offsetHeight; // 强制回流，让浏览器记录起始位置
+                    tr.style.transition = 'transform .6s cubic-bezier(.2,.7,.3,1)';
+                    tr.style.transform = 'translateY(0)';
+                }
+            });
+
+            buildAlert(d);
+            updateToggles();
+        }
+
+        function fetchLive() {
+            fetch("{{ url_for('admin_live', exam_id=exam['id']) }}")
+                .then(function (r) { return r.json(); })
+                .then(function (d) { if (d.ok) render(d); })
+                .catch(function () {});
+        }
+
+        updateToggles();
+        fetchLive();
+        setInterval(fetchLive, 5000);
+
+        // ---------- 发送消息 ----------
+        var allStudents = [];  // 缓存最新学生列表
+        var msgModal = document.getElementById('msg-modal');
+        var msgContent = document.getElementById('msg-content');
+        var msgList = document.getElementById('msg-student-list');
+        var msgSelectAll = document.getElementById('msg-select-all');
+        var msgToast = document.getElementById('msg-toast');
+
+        // 打开模态框
+        document.getElementById('btn-msg').addEventListener('click', function () {
+            buildStudentChecklist();
+            msgContent.value = '';
+            msgSelectAll.checked = false;
+            msgModal.style.display = 'flex';
+            msgContent.focus();
+        });
+        // 取消
+        document.getElementById('msg-cancel').addEventListener('click', function () {
+            msgModal.style.display = 'none';
+        });
+        // 点击遮罩关闭
+        msgModal.addEventListener('click', function (e) {
+            if (e.target === msgModal) msgModal.style.display = 'none';
+        });
+
+        // 全选切换
+        msgSelectAll.addEventListener('change', function () {
+            msgList.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+                if (!cb.disabled) cb.checked = msgSelectAll.checked;
+            });
+        });
+        // "全体考生"单选时禁用列表
+        document.querySelectorAll('input[name=msg-scope]').forEach(function (r) {
+            r.addEventListener('change', function () {
+                var isAll = document.querySelector('input[name=msg-scope]:checked').value === 'all';
+                msgList.style.opacity = isAll ? '0.4' : '1';
+                msgList.querySelectorAll('input').forEach(function (el) { el.disabled = isAll; });
+            });
+        });
+
+        function buildStudentChecklist() {
+            var html = allStudents.map(function (s) {
+                var disabled = s.status === '未开始' ? ' disabled' : '';
+                var checked = s.status === '答题中' ? ' checked' : '';
+                return '<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer">' +
+                    '<input type="checkbox" value="' + s.student_id + '"' + disabled + checked + '>' +
+                    '<span>' + s.name + ' <span class="muted small">(' + s.student_no + ')</span></span>' +
+                    '<span class="tag ' + (s.status === '答题中' ? 'amber' : s.status === '已交卷' ? 'green' : 'gray') + '" style="margin-left:auto;font-size:12px">' + s.status + '</span>' +
+                    '</label>';
+            }).join('');
+            msgList.innerHTML = html || '<span class="muted">暂无学生</span>';
+            msgList.style.opacity = '1';
+        }
+
+        function showToastMsg(text) {
+            msgToast.textContent = text;
+            msgToast.style.display = 'block';
+            clearTimeout(msgToast._t);
+            msgToast._t = setTimeout(function () { msgToast.style.display = 'none'; }, 3000);
+        }
+
+        // 发送
+        document.getElementById('msg-send').addEventListener('click', function () {
+            var content = msgContent.value.trim();
+            if (!content) { msgContent.focus(); return; }
+            var scope = document.querySelector('input[name=msg-scope]:checked').value;
+            var ids;
+            if (scope === 'all') {
+                ids = ['all'];
+            } else {
+                ids = [];
+                msgList.querySelectorAll('input[type=checkbox]:checked:not(:disabled)').forEach(function (cb) {
+                    ids.push(parseInt(cb.value));
+                });
+                if (!ids.length) { showToastMsg('请至少选择一名学生'); return; }
+            }
+            var btn = document.getElementById('msg-send');
+            btn.disabled = true;
+            btn.textContent = '发送中…';
+            fetch("{{ url_for('admin_send_message', exam_id=exam['id']) }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content, student_ids: ids })
+            }).then(function (r) { return r.json(); })
+              .then(function (d) {
+                  if (d.ok) {
+                      msgModal.style.display = 'none';
+                      showToastMsg('已发送给 ' + d.count + ' 名学生');
+                  } else {
+                      alert(d.msg || '发送失败');
+                  }
+              })
+              .catch(function () { alert('网络异常'); })
+              .then(function () { btn.disabled = false; btn.textContent = '发送'; });
+        });
+
+        // 拦截 render 缓存学生列表
+        var _origRender = render;
+        render = function (d) {
+            allStudents = d.students || [];
+            _origRender(d);
+        };
+
+        // ---------- 修改时间 ----------
+        var timeModal = document.getElementById('time-modal');
+        var timeList = document.getElementById('time-student-list');
+        var timeSelectAll = document.getElementById('time-select-all');
+
+        function formatTime(seconds) {
+            var m = Math.floor(seconds / 60);
+            var s = seconds % 60;
+            return m + '分' + s + '秒';
+        }
+
+        // 打开模态框
+        document.getElementById('btn-time').addEventListener('click', function () {
+            buildTimeStudentList();
+            document.getElementById('time-minutes').value = 5;
+            document.getElementById('time-notify').checked = true;
+            document.querySelector('input[name=time-action][value=set]').checked = true;
+            timeSelectAll.checked = false;
+            timeModal.style.display = 'flex';
+        });
+
+        // 取消
+        document.getElementById('time-cancel').addEventListener('click', function () {
+            timeModal.style.display = 'none';
+        });
+
+        // 点击遮罩关闭
+        timeModal.addEventListener('click', function (e) {
+            if (e.target === timeModal) timeModal.style.display = 'none';
+        });
+
+        // 全选切换
+        timeSelectAll.addEventListener('change', function () {
+            timeList.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+                if (!cb.disabled) cb.checked = timeSelectAll.checked;
+            });
+        });
+
+        function buildTimeStudentList() {
+            var html = allStudents.map(function (s) {
+                var disabled = s.status !== '答题中' ? ' disabled' : '';
+                var checked = s.status === '答题中' ? ' checked' : '';
+                var remaining = s.remaining ? formatTime(s.remaining) : '--';
+                return '<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer">' +
+                    '<input type="checkbox" value="' + s.student_id + '"' + disabled + checked + '>' +
+                    '<span>' + s.name + ' <span class="muted small">(' + s.student_no + ')</span></span>' +
+                    '<span class="muted small" style="margin-left:auto">剩余 ' + remaining + '</span>' +
+                    '</label>';
+            }).join('');
+            timeList.innerHTML = html || '<span class="muted">暂无学生</span>';
+        }
+
+        // 确定修改
+        document.getElementById('time-ok').addEventListener('click', function () {
+            var action = document.querySelector('input[name=time-action]:checked').value;
+            var minutes = parseInt(document.getElementById('time-minutes').value) || 0;
+            var notify = document.getElementById('time-notify').checked;
+            if (minutes <= 0) { alert('请输入有效时间'); return; }
+
+            var ids = [];
+            timeList.querySelectorAll('input[type=checkbox]:checked:not(:disabled)').forEach(function (cb) {
+                ids.push(parseInt(cb.value));
+            });
+            if (!ids.length) { alert('请至少选择一名学生'); return; }
+
+            var btn = document.getElementById('time-ok');
+            btn.disabled = true;
+            btn.textContent = '设置中…';
+
+            // 逐个发送请求
+            var done = 0;
+            var failed = 0;
+            ids.forEach(function (sid) {
+                fetch("{{ url_for('admin_set_time', exam_id=exam['id']) }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: sid, action: action, minutes: minutes, notify: notify })
+                }).then(function (r) { return r.json(); })
+                  .then(function (d) {
+                      if (!d.ok) failed++;
+                  })
+                  .catch(function () { failed++; })
+                  .then(function () {
+                      done++;
+                      if (done === ids.length) {
+                          timeModal.style.display = 'none';
+                          if (failed) {
+                              showToastMsg('已完成，' + failed + ' 个失败');
+                          } else {
+                              showToastMsg('已修改 ' + ids.length + ' 名学生的时间');
+                          }
+                          fetchLive();
+                          btn.disabled = false;
+                          btn.textContent = '确定';
+                      }
+                  });
+            });
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

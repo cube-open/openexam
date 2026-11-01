@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据管理 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'data' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% include '_flash.html' %}
+
+        <!-- 导出 -->
+        <section class="panel">
+            <h2>导出数据</h2>
+            <p class="muted" style="margin-bottom:12px">将所有数据（学生、考试、题目、成绩、分组、知识点等）导出为 JSON 文件，可用于备份或迁移。</p>
+            <a href="{{ url_for('admin_export_all') }}" class="btn primary">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                下载全部数据备份
+            </a>
+        </section>
+
+        <!-- 数据库快照 -->
+        <section class="panel">
+            <h2>数据库快照</h2>
+            <p class="muted" style="margin-bottom:12px">
+                服务运行时每 {{ backup_hours }} 小时自动备份一次，保留最近 {{ backup_keep }} 份。快照是完整的 <code>.db</code> 文件，
+                出问题直接用它替换 <code>exam.db</code> 即可（先停服）。
+            </p>
+            <form method="post" action="{{ url_for('admin_backup_now') }}" style="margin-bottom:14px">
+                <button type="submit" class="btn primary">立即备份</button>
+            </form>
+            {% if backups %}
+            <div class="table-wrap">
+                <table class="table">
+                    <thead>
+                        <tr><th>文件</th><th>大小</th><th>时间</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for b in backups %}
+                        <tr>
+                            <td data-label="文件"><code>{{ b['name'] }}</code></td>
+                            <td data-label="大小">{{ (b['size'] / 1024 / 1024)|round(1) }} MB</td>
+                            <td data-label="时间">{{ fmt_ts(b['mtime']) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="muted small">还没有快照。</p>
+            {% endif %}
+        </section>
+
+        <!-- 导入覆盖 -->
+        <section class="panel danger-zone">
+            <h2>⚠ 导入 / 覆盖数据</h2>
+            <div class="danger-warning">
+                <p><strong>危险操作</strong>：此功能会<strong>删除当前所有数据</strong>并替换为上传文件中的数据。</p>
+                <p>操作前会自动备份当前数据，但请务必确认你了解后果。</p>
+            </div>
+
+            <form id="import-form" method="post" action="{{ url_for('admin_import_all') }}" enctype="multipart/form-data">
+                <div class="import-step" id="step1">
+                    <h3>第一步：选择备份文件</h3>
+                    <input type="file" name="file" id="backup-file" accept=".json" required>
+                    <button type="button" id="btn-preview" class="btn" style="margin-top:10px">预览数据</button>
+                </div>
+
+                <div class="import-step" id="step2" style="display:none">
+                    <h3>第二步：确认数据摘要</h3>
+                    <div id="preview-result" class="preview-box"></div>
+                </div>
+
+                <div class="import-step" id="step3" style="display:none">
+                    <h3>第三步：输入确认文字</h3>
+                    <p class="muted">请输入 <code class="confirm-code">我确认覆盖所有数据</code> 以继续：</p>
+                    <input type="text" name="confirm" id="confirm-input" class="confirm-input" placeholder="请输入确认文字" autocomplete="off">
+                    <div id="confirm-hint" class="muted small" style="margin-top:6px"></div>
+                </div>
+
+                <div class="import-step" id="step4" style="display:none">
+                    <button type="submit" id="btn-import" class="btn danger" disabled>
+                        ⚠ 执行覆盖（不可撤销）
+                    </button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        var btnPreview = document.getElementById('btn-preview');
+        var fileInput = document.getElementById('backup-file');
+        var step2 = document.getElementById('step2');
+        var step3 = document.getElementById('step3');
+        var step4 = document.getElementById('step4');
+        var previewResult = document.getElementById('preview-result');
+        var confirmInput = document.getElementById('confirm-input');
+        var confirmHint = document.getElementById('confirm-hint');
+        var btnImport = document.getElementById('btn-import');
+        var REQUIRED = '我确认覆盖所有数据';
+
+        btnPreview.addEventListener('click', function () {
+            var file = fileInput.files[0];
+            if (!file) { alert('请先选择文件'); return; }
+            var fd = new FormData();
+            fd.append('file', file);
+            btnPreview.disabled = true;
+            btnPreview.textContent = '解析中…';
+            fetch("{{ url_for('admin_import_preview') }}", { method: 'POST', body: fd })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    btnPreview.disabled = false;
+                    btnPreview.textContent = '预览数据';
+                    if (!d.ok) { alert(d.msg); return; }
+                    var html = '<table class="table" style="margin:0"><thead><tr><th>表名</th><th>记录数</th></tr></thead><tbody>';
+                    var total = 0;
+                    Object.keys(d.summary).forEach(function (k) {
+                        html += '<tr><td data-label="表名">' + k + '</td><td data-label="记录数">' + d.summary[k] + '</td></tr>';
+                        total += d.summary[k];
+                    });
+                    html += '<tr style="font-weight:700"><td data-label="表名">合计</td><td data-label="记录数">' + total + '</td></tr>';
+                    html += '</tbody></table>';
+                    previewResult.innerHTML = html;
+                    step2.style.display = '';
+                    step3.style.display = '';
+                    step4.style.display = '';
+                    confirmInput.focus();
+                })
+                .catch(function () {
+                    btnPreview.disabled = false;
+                    btnPreview.textContent = '预览数据';
+                    alert('请求失败');
+                });
+        });
+
+        confirmInput.addEventListener('input', function () {
+            var val = confirmInput.value;
+            if (val === REQUIRED) {
+                confirmHint.textContent = '✓ 确认文字正确';
+                confirmHint.style.color = '#059669';
+                btnImport.disabled = false;
+            } else {
+                confirmHint.textContent = val ? '还差 ' + (REQUIRED.length - val.length) + ' 个字' : '';
+                confirmHint.style.color = '';
+                btnImport.disabled = true;
+            }
+        });
+
+        document.getElementById('import-form').addEventListener('submit', function (e) {
+            if (confirmInput.value !== REQUIRED) {
+                e.preventDefault();
+                alert('确认文字不正确');
+                return;
+            }
+            if (!confirm('最终确认：覆盖所有数据？此操作不可撤销！')) {
+                e.preventDefault();
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

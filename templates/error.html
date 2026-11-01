@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ code }} · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <main class="container narrow">
+        <div class="empty-state" style="margin-top:48px">
+            <h2 style="font-size:56px;margin:0 0 8px">{{ code }}</h2>
+            <p class="muted">{{ message }}</p>
+            <p style="margin-top:20px">
+                <a class="btn primary" href="{{ url_for('index') }}">返回首页</a>
+            </p>
+        </div>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

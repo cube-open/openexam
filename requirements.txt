@@ -1,0 +1,3 @@
+Flask>=2.3
+waitress>=3.0
+

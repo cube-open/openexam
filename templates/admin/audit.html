@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作审计 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'audit' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        <h1 class="page-title">操作审计</h1>
+        {% include '_flash.html' %}
+
+        <p class="muted" style="margin:-8px 0 16px">
+            记录改分、删卷、重置密码等敏感操作。只追加不修改，用于事后核查。
+        </p>
+
+        <form method="get" class="inline-form" style="margin-bottom:14px">
+            <input type="text" name="action" value="{{ action }}" placeholder="按动作筛选，如 exam.">
+            <button type="submit" class="btn">筛选</button>
+            {% if action %}<a class="btn" href="{{ url_for('admin_audit') }}">清除</a>{% endif %}
+        </form>
+
+        <section class="panel">
+            <h2>最近 {{ rows|length }} 条</h2>
+            {% if rows %}
+            <table class="table">
+                <thead>
+                    <tr><th style="width:150px">时间</th><th style="width:110px">操作者</th>
+                        <th style="width:150px">动作</th><th style="width:120px">对象</th>
+                        <th>说明</th><th style="width:120px">IP</th></tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td data-label="时间" class="muted small">{{ fmt_ts(r['created_at']) }}</td>
+                        <td data-label="操作者">{{ r['actor_name'] or '-' }}
+                            <span class="muted small">{{ r['actor_type'] }}</span></td>
+                        <td data-label="动作"><code class="small">{{ r['action'] }}</code></td>
+                        <td data-label="对象" class="muted small">
+                            {% if r['target_type'] %}{{ r['target_type'] }}{% if r['target_id'] %} #{{ r['target_id'] }}{% endif %}{% else %}-{% endif %}
+                        </td>
+                        <td data-label="说明">{{ r['detail'] }}</td>
+                        <td data-label="IP" class="muted small">{{ r['ip'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="muted">还没有审计记录。</p>
+            {% endif %}
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

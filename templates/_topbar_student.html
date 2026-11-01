@@ -1,0 +1,14 @@
+<header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}">
+        {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+        <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+    </a>
+    <div class="topbar-user">
+        <span class="user-meta">{{ display_name }} · {{ client_ip }}</span>
+        <a class="nav-link {{ 'active' if active == 'dashboard' }}" href="{{ url_for('dashboard') }}">我的考试</a>
+        <a class="nav-link {{ 'active' if active == 'wrong' }}" href="{{ url_for('student_wrong_book') }}">错题本</a>
+        <a class="nav-link {{ 'active' if active == 'growth' }}" href="{{ url_for('student_growth') }}">我的成长</a>
+        <a class="nav-link {{ 'active' if active == 'profile' }}" href="{{ url_for('profile') }}">账号设置</a>
+        <a class="nav-link" href="{{ url_for('logout') }}">退出登录</a>
+    </div>
+</header>

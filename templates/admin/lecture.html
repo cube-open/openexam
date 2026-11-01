@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>讲课模式 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% set sub = 'lecture' %}
+        {% include 'admin/_subnav.html' %}
+        <div class="lecture-toolbar">
+            <button id="btn-prev" class="btn sm">上一题</button>
+            <span id="pos" class="muted">第 1 / 1 题</span>
+            <button id="btn-next" class="btn sm">下一题</button>
+            <div id="qnav" class="qnav"></div>
+        </div>
+
+        <div id="lecture-body" class="lecture-body"></div>
+    </main>
+
+    <!-- 选该选项的学生名单弹窗 -->
+    <div id="stu-modal" class="modal-overlay">
+        <div class="modal">
+            <h3 id="stu-title"></h3>
+            <div id="stu-list" class="stu-list"></div>
+            <div class="modal-actions">
+                <button id="stu-close" class="btn primary">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='katex.min.js') }}"></script>
+    <script>
+        var STATS = {{ stats_json | safe }};
+        var cur = 0;
+        var LETTERS = 'ABCDEFGH';
+        var TYPES = {choice: '单选', multi: '多选', judge: '判断', blank: '填空'};
+
+        function esc(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+        function correctLetters(q) {
+            if (q.type === 'multi') return new Set(q.answer.split(''));
+            if (q.type === 'choice' || q.type === 'judge') return new Set([q.answer]);
+            return new Set();
+        }
+        function addLineNumbers() {
+            document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                if (code.getAttribute('data-numbered')) return;
+                code.setAttribute('data-numbered', '1');
+                code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                    return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                }).join('');
+            });
+        }
+        function renderMarkdown() {
+            document.querySelectorAll('.markdown-body, .q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+            renderMath(document.body);
+        }
+        function renderMath(root) {
+            if (!window.katex) return;
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+            var nodes = [];
+            while (walker.nextNode()) nodes.push(walker.currentNode);
+            nodes.forEach(function (node) {
+                var text = node.textContent;
+                if (text.indexOf('$') === -1) return;
+                var parts = text.split('$$');
+                if (parts.length >= 3) {
+                    var html = '';
+                    for (var i = 0; i < parts.length; i++) {
+                        if (i % 2 === 0) html += parts[i];
+                        else { try { html += katex.renderToString(parts[i], {displayMode: true, throwOnError: false}); } catch (e) { html += parts[i]; } }
+                    }
+                    var span = document.createElement('span');
+                    span.innerHTML = html;
+                    node.parentNode.replaceChild(span, node);
+                    return;
+                }
+                parts = text.split('$');
+                if (parts.length >= 3) {
+                    var html = '';
+                    for (var i = 0; i < parts.length; i++) {
+                        if (i % 2 === 0) html += parts[i];
+                        else { try { html += katex.renderToString(parts[i], {displayMode: false, throwOnError: false}); } catch (e) { html += parts[i]; } }
+                    }
+                    var span = document.createElement('span');
+                    span.innerHTML = html;
+                    node.parentNode.replaceChild(span, node);
+                }
+            });
+        }
+        function render() {
+            var q = STATS[cur];
+            document.getElementById('pos').textContent = '第 ' + (cur + 1) + ' / ' + STATS.length + ' 题';
+
+            var isChoice = q.type === 'choice' || q.type === 'judge' || q.type === 'multi';
+            var correct = correctLetters(q);
+            var optsHtml = '';
+            if (isChoice) {
+                optsHtml = q.options.map(function (o, i) {
+                    var l = LETTERS[i];
+                    var isCorrect = correct.has(l);
+                    return '<div class="lecture-option ' + (isCorrect ? 'is-correct' : '') + '">' +
+                        '<span class="opt-letter">' + l + '</span><span>' + esc(o) + '</span>' +
+                        (isCorrect ? '<span class="tag green">正确答案</span>' : '') +
+                        '</div>';
+                }).join('');
+            }
+
+            var s = q.stats;
+            var chips = '<div class="stat-chips">' +
+                '<div class="chip">答对 <b>' + s.correct + '</b></div>' +
+                '<div class="chip">答错 <b>' + s.wrong + '</b></div>' +
+                '<div class="chip">未答 <b>' + s.blank + '</b></div>' +
+                '<div class="chip">正确率 <b>' + s.rate + '%</b></div>' +
+                '</div>';
+
+            var distHtml = '';
+            if (isChoice) {
+                distHtml = '<div class="dist-title">选项分布（点击查看选了谁）</div>' +
+                    q.options.map(function (o, i) {
+                        var l = LETTERS[i];
+                        var cnt = s.option_counts[l] || 0;
+                        var isCorrect = correct.has(l);
+                        var pct = s.answered ? Math.round(cnt / s.answered * 100) : 0;
+                        return '<div class="dist-row ' + (isCorrect ? 'is-correct' : '') + '" onclick="showStudents(' + cur + ',\'' + l + '\')">' +
+                            '<span class="dist-letter">' + l + '</span>' +
+                            '<span class="dist-text">' + esc(o) + '</span>' +
+                            '<div class="dist-bar"><div class="dist-fill" style="width:' + pct + '%"></div></div>' +
+                            '<span class="dist-count">' + cnt + ' 人</span>' +
+                            '</div>';
+                    }).join('');
+            }
+
+            distHtml += '<div class="dist-title" style="margin-top:12px">对错名单（点击查看）</div>' +
+                '<div class="dist-row is-correct" onclick="showCorrectWrong(' + cur + ', true)">' +
+                '<span class="dist-letter" style="color:var(--green)">对</span>' +
+                '<span class="dist-text">答对</span>' +
+                '<span class="dist-count">' + s.correct_students.length + ' 人</span></div>' +
+                '<div class="dist-row" onclick="showCorrectWrong(' + cur + ', false)">' +
+                '<span class="dist-letter" style="color:var(--red)">错</span>' +
+                '<span class="dist-text">答错</span>' +
+                '<span class="dist-count">' + s.wrong_students.length + ' 人</span></div>';
+
+            var expHtml = q.explanation
+                ? '<div class="explanation"><div class="explanation-title">解析</div><div class="markdown-body">' + esc(q.explanation) + '</div></div>'
+                : '';
+
+            var parentHtml = '';
+            if (q.parent_text) {
+                parentHtml = '<div class="q-group-context q-md" style="margin-bottom:16px">' + esc(q.parent_text) + '</div>';
+            }
+
+            document.getElementById('lecture-body').innerHTML =
+                '<div class="lecture-question">' +
+                    '<div class="q-meta"><span class="tag gray">' + TYPES[q.type] + '</span><span class="muted small">第 ' + q.num + ' 题</span></div>' +
+                    parentHtml +
+                    '<div class="q-text-lecture q-md">' + esc(q.question) + '</div>' +
+                    optsHtml +
+                    '<div class="lecture-answer">答案：<strong>' + esc(q.answer_text) + '</strong></div>' +
+                    expHtml +
+                '</div>' +
+                '<div class="lecture-stats">' + chips + distHtml + '</div>';
+
+            renderMarkdown();
+            // 高亮题号
+            document.querySelectorAll('.qnav .qnum').forEach(function (el, i) {
+                el.classList.toggle('active', i === cur);
+            });
+        }
+
+        function showList(title, names) {
+            document.getElementById('stu-title').textContent = title + ' · ' + names.length + ' 人';
+            document.getElementById('stu-list').innerHTML = names.length
+                ? names.map(function (n) { return '<span class="stu-tag">' + esc(n) + '</span>'; }).join('')
+                : '<p class="muted">无</p>';
+            document.getElementById('stu-modal').classList.add('show');
+        }
+        function showStudents(qi, letter) {
+            var q = STATS[qi];
+            var names = q.stats.option_students[letter] || [];
+            var idx = LETTERS.indexOf(letter);
+            var optText = (idx >= 0 && q.options[idx]) ? q.options[idx] : letter;
+            showList('选了 ' + letter + '（' + esc(optText) + '）的学生', names);
+        }
+        function showCorrectWrong(qi, isCorrect) {
+            var q = STATS[qi];
+            showList(isCorrect ? '答对' : '答错', isCorrect ? q.stats.correct_students : q.stats.wrong_students);
+        }
+
+        // 题号导航
+        var qnav = document.getElementById('qnav');
+        STATS.forEach(function (q, i) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'qnum';
+            b.textContent = q.num;
+            b.addEventListener('click', function () { cur = i; render(); window.scrollTo(0, 0); });
+            qnav.appendChild(b);
+        });
+
+        document.getElementById('btn-prev').addEventListener('click', function () { if (cur > 0) { cur--; render(); window.scrollTo(0, 0); } });
+        document.getElementById('btn-next').addEventListener('click', function () { if (cur < STATS.length - 1) { cur++; render(); window.scrollTo(0, 0); } });
+        document.getElementById('stu-close').addEventListener('click', function () { document.getElementById('stu-modal').classList.remove('show'); });
+        document.getElementById('stu-modal').addEventListener('click', function (e) { if (e.target === this) this.classList.remove('show'); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'ArrowLeft' && cur > 0) { cur--; render(); }
+            if (e.key === 'ArrowRight' && cur < STATS.length - 1) { cur++; render(); }
+        });
+
+        render();
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

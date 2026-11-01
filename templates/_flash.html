@@ -1,0 +1,4 @@
+{# 统一的 flash 消息区。页面里 {% include '_flash.html' %} 即可，别再复制粘贴。 #}
+{% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+{% endwith %}

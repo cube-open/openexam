@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>反思汇总 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        <div class="detail-layout">
+            <!-- 左侧学生切换 -->
+            <aside class="student-sidebar">
+                <div class="sidebar-title">学生（{{ rows|length }}）</div>
+                <div class="sidebar-search">
+                    <input type="text" id="student-search" placeholder="搜索姓名 / 学号…" autocomplete="off">
+                </div>
+                {% for r in rows %}
+                <a class="sidebar-item" href="#ref-{{ r['id'] }}" data-name="{{ r['name'] }}" data-no="{{ r['student_no'] }}"
+                   data-ref="{{ '1' if r['reflection'] else '0' }}">
+                    <span class="sidebar-name">{{ r['name'] }}</span>
+                    <span class="sidebar-score">{{ r['score'] if r['score'] is not none else '—' }}</span>
+                    <span class="sidebar-dot" title="已写反思" style="{{ '' if r['reflection'] else 'display:none' }}"></span>
+                    <span class="writing-dot" title="正在写" style="display:none"></span>
+                </a>
+                {% else %}
+                <div class="muted small" style="padding:10px">暂无已交卷学生</div>
+                {% endfor %}
+            </aside>
+
+            <!-- 右侧反思列表（可整页翻滚，也可点左侧跳转） -->
+            <div class="detail-main">
+                <h1 class="page-title">{{ exam['title'] }} · 反思汇总</h1>
+                <div style="margin:4px 0 14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+                    <a class="btn" href="{{ url_for('admin_results', exam_id=exam['id']) }}">返回成绩</a>
+                    <form method="post" action="{{ url_for('admin_toggle_reflection', exam_id=exam['id']) }}">
+                        <button type="submit" class="btn {{ 'danger' if exam['enable_reflection'] else 'primary' }}">
+                            {{ '关闭反思' if exam['enable_reflection'] else '开启反思' }}
+                        </button>
+                    </form>
+                    <label class="check-row" style="margin:0">
+                        <input type="checkbox" id="filter-written"> 仅查看已写反思的同学
+                    </label>
+                    <span id="live-status" class="muted small"></span>
+                </div>
+
+                {% for r in rows %}
+                <section class="panel reflection-panel" id="ref-{{ r['id'] }}" data-ref="{{ '1' if r['reflection'] else '0' }}">
+                    <h2>
+                        {{ r['name'] }}（{{ r['student_no'] }}）
+                        <span class="muted small" style="font-weight:400">得分 {{ r['score'] if r['score'] is not none else '—' }}</span>
+                        <span class="writing-badge tag green" style="display:none; margin-left:8px">正在写…</span>
+                    </h2>
+                    {% if r['reflection'] %}
+                    <div class="notes-text reflection-text">{{ r['reflection'] }}</div>
+                    <p class="muted no-ref" style="display:none">未写反思</p>
+                    {% else %}
+                    <p class="muted no-ref">未写反思</p>
+                    <div class="notes-text reflection-text" style="display:none"></div>
+                    {% endif %}
+                </section>
+                {% else %}
+                <div class="empty-state"><p class="muted">暂无已交卷学生</p></div>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var search = document.getElementById('student-search');
+            var filterWritten = document.getElementById('filter-written');
+            var liveStatus = document.getElementById('live-status');
+
+            function applyFilters() {
+                var kw = search ? search.value.trim().toLowerCase() : '';
+                var onlyWritten = filterWritten ? filterWritten.checked : false;
+                document.querySelectorAll('.sidebar-item').forEach(function (item) {
+                    var name = (item.dataset.name || '').toLowerCase();
+                    var no = (item.dataset.no || '').toLowerCase();
+                    var matchKw = (name + ' ' + no).indexOf(kw) >= 0;
+                    var matchRef = !onlyWritten || item.dataset.ref === '1';
+                    item.style.display = (matchKw && matchRef) ? '' : 'none';
+                });
+                document.querySelectorAll('.reflection-panel').forEach(function (panel) {
+                    panel.style.display = (onlyWritten && panel.dataset.ref === '0') ? 'none' : '';
+                });
+            }
+
+            if (search) search.addEventListener('input', applyFilters);
+            if (filterWritten) filterWritten.addEventListener('change', applyFilters);
+
+            // 点击左侧学生：平滑滚动到对应反思并高亮
+            document.querySelectorAll('.sidebar-item').forEach(function (item) {
+                item.addEventListener('click', function (e) {
+                    var target = document.querySelector(item.getAttribute('href'));
+                    if (target) {
+                        e.preventDefault();
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        target.classList.remove('flash-highlight');
+                        void target.offsetWidth;
+                        target.classList.add('flash-highlight');
+                    }
+                });
+            });
+
+            // 实时更新：拉取最新反思内容 + 正在写状态
+            function applyLive(d) {
+                if (!d || !d.ok) return;
+                d.students.forEach(function (s) {
+                    var hasRef = !!s.reflection;
+                    var panel = document.getElementById('ref-' + s.id);
+                    var item = document.querySelector('.sidebar-item[href="#ref-' + s.id + '"]');
+                    if (panel) {
+                        var txt = panel.querySelector('.reflection-text');
+                        var noRef = panel.querySelector('.no-ref');
+                        var badge = panel.querySelector('.writing-badge');
+                        if (txt) { txt.textContent = s.reflection || ''; txt.style.display = hasRef ? '' : 'none'; }
+                        if (noRef) noRef.style.display = hasRef ? 'none' : '';
+                        if (badge) badge.style.display = s.writing ? '' : 'none';
+                        panel.setAttribute('data-ref', hasRef ? '1' : '0');
+                    }
+                    if (item) {
+                        var dot = item.querySelector('.sidebar-dot');
+                        var wdot = item.querySelector('.writing-dot');
+                        if (dot) dot.style.display = hasRef ? '' : 'none';
+                        if (wdot) wdot.style.display = s.writing ? '' : 'none';
+                        item.setAttribute('data-ref', hasRef ? '1' : '0');
+                    }
+                });
+                applyFilters();
+                if (liveStatus) liveStatus.textContent = '实时更新中';
+            }
+            function poll() {
+                fetch("{{ url_for('admin_reflections_live', exam_id=exam['id']) }}")
+                    .then(function (r) { return r.json(); })
+                    .then(applyLive)
+                    .catch(function () {});
+            }
+            setInterval(poll, 4000);
+            poll();
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

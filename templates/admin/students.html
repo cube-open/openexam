@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生管理 · 后台</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'students' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <h2>快速批量添加（只需姓名）</h2>
+            <p class="muted small" style="margin-bottom:10px">
+                每行一个姓名，用户名 = 姓名，默认密码 <code>123456</code>，学号自动生成，重名自动跳过。
+            </p>
+            <form method="post" action="{{ url_for('admin_students_quick') }}" class="stack-form">
+                <textarea name="names" rows="5" placeholder="张三&#10;李四&#10;王五"></textarea>
+                <button type="submit" class="btn primary">快速添加</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>新增学生账号</h2>
+            <form method="post" class="inline-form">
+                <input type="hidden" name="action" value="create">
+                <input type="text" name="username" placeholder="用户名" required>
+                <input type="password" name="password" placeholder="初始密码" required>
+                <input type="text" name="name" placeholder="姓名" required>
+                <input type="text" name="student_no" placeholder="学号" required>
+                <button type="submit" class="btn primary">创建</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>批量导入学生</h2>
+            <p class="muted small" style="margin-bottom:10px">
+                每行一个账号，字段：<code>用户名,密码,姓名,学号</code>（逗号或空格分隔均可，支持表头行，重复账号自动跳过）
+            </p>
+            <form method="post" class="stack-form">
+                <input type="hidden" name="action" value="import">
+                <textarea name="bulk" rows="6" placeholder="stu01,123456,张三,2024001&#10;stu02,123456,李四,2024002&#10;stu03,123456,王五,2024003"></textarea>
+                <button type="submit" class="btn primary">导 入</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>学生列表（{{ students|length }}）</h2>
+            <div class="batch-toolbar" style="margin-bottom:12px">
+                <form method="post" action="{{ url_for('admin_students_batch') }}" id="batch-form"
+                      style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%">
+                    <input type="hidden" name="action" value="">
+                    <input type="hidden" name="ids" value="">
+                    <input type="password" name="password" placeholder="新密码（批量改密用）" autocomplete="off"
+                           style="width:170px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px">
+                    <button type="button" class="btn sm primary" data-action="reset">批量改密码</button>
+                    <button type="button" class="btn sm" data-action="disable">批量禁用</button>
+                    <button type="button" class="btn sm" data-action="enable">批量启用</button>
+                    <select name="group_id" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                        <option value="">未分组</option>
+                        {% for g in all_groups %}<option value="{{ g['id'] }}">{{ g['name'] }}</option>{% endfor %}
+                    </select>
+                    <button type="button" class="btn sm" data-action="group">批量分组</button>
+                    <button type="button" class="btn sm danger" data-action="delete">批量删除</button>
+                </form>
+            </div>
+            <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width:32px"><input type="checkbox" id="check-all" title="全选"></th>
+                        <th>ID</th><th>用户名</th><th>姓名</th><th>学号</th><th>分组</th>
+                        <th>状态</th><th>已完成考试</th><th>最后登录IP</th><th class="ta-r">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr>
+                        <td><input type="checkbox" class="stu-check" value="{{ s['id'] }}"></td>
+                        <td data-label="ID">{{ s['id'] }}</td>
+                        <td data-label="用户名">{{ s['username'] }}</td>
+                        <td data-label="姓名">{{ s['name'] }}</td>
+                        <td data-label="学号">{{ s['student_no'] }}</td>
+                        <td data-label="分组">
+                            <form method="post" action="{{ url_for('admin_set_student_group', sid=s['id']) }}">
+                                <select name="group_id" onchange="this.form.submit()"
+                                        style="padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                                    <option value="">未分组</option>
+                                    {% for g in all_groups %}
+                                    <option value="{{ g['id'] }}" {{ 'selected' if s['group_id'] == g['id'] }}>{{ g['name'] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td data-label="状态">
+                            {% if s['enabled'] %}
+                            <span class="tag green">启用</span>
+                            {% else %}
+                            <span class="tag red">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="已完成考试">{{ s['done'] }}</td>
+                        <td data-label="最后登录IP">
+                            {% if s['last_ip'] %}
+                            {{ s['last_ip'] }}
+                            <form method="post" action="{{ url_for('admin_block_ip') }}" style="display:inline"
+                                  onsubmit="var r = prompt('封禁备注（可选，如：张三作弊）'); if (r === null) return false; this.remark.value = r.trim();">
+                                <input type="hidden" name="ip" value="{{ s['last_ip'] }}">
+                                <input type="hidden" name="remark" value="">
+                                <input type="hidden" name="back" value="{{ url_for('admin_students') }}">
+                                <button type="submit" class="btn sm danger" style="margin-left:6px">封禁</button>
+                            </form>
+                            {% else %}
+                            <span class="muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="操作" class="ta-r ops">
+                            <a href="{{ url_for('admin_student_growth', sid=s['id']) }}" class="btn sm">成长</a>
+                            <form method="post" action="{{ url_for('admin_toggle_student', sid=s['id']) }}" style="display:inline">
+                                <button type="submit" class="btn sm {{ '' if s['enabled'] else 'danger' }}">{{ '禁用' if s['enabled'] else '启用' }}</button>
+                            </form>
+                            <form method="post" style="display:inline-flex; gap:4px; align-items:center">
+                                <input type="hidden" name="action" value="reset">
+                                <input type="hidden" name="student_id" value="{{ s['id'] }}">
+                                <input type="text" name="password" placeholder="新密码" required
+                                       style="width:86px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+                                <button type="submit" class="btn sm">改密</button>
+                            </form>
+                            <form method="post" action="{{ url_for('admin_delete_student', sid=s['id']) }}"
+                                  onsubmit="return confirm('确定删除该学生及其所有成绩？');" style="display:inline">
+                                <button type="submit" class="btn sm danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="empty">暂无学生</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 全选 / 取消全选
+        var checkAll = document.getElementById('check-all');
+        if (checkAll) {
+            checkAll.addEventListener('change', function () {
+                document.querySelectorAll('.stu-check').forEach(function (c) { c.checked = checkAll.checked; });
+            });
+        }
+        // 批量操作
+        var batchForm = document.getElementById('batch-form');
+        if (batchForm) {
+            batchForm.querySelectorAll('button[data-action]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var ids = Array.from(document.querySelectorAll('.stu-check:checked'))
+                                   .map(function (c) { return c.value; });
+                    if (!ids.length) { alert('请先勾选学生'); return; }
+                    var action = btn.getAttribute('data-action');
+                    if (action === 'reset' && !batchForm.querySelector('input[name="password"]').value.trim()) {
+                        alert('请先填写新密码'); return;
+                    }
+                    if (action === 'delete' && !confirm('确定删除选中的学生及其全部成绩？')) return;
+                    batchForm.querySelector('input[name="action"]').value = action;
+                    batchForm.querySelector('input[name="ids"]').value = ids.join(',');
+                    batchForm.submit();
+                });
+            });
+        }
+    </script>
+
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

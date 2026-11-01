@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原卷 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <header class="topbar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        <div class="topbar-user">
+            <span class="user-meta">{{ display_name }} · {{ client_ip }}</span>
+            <a class="nav-link" href="{{ url_for('dashboard') }}">返回首页</a>
+            <a class="nav-link" href="{{ url_for('logout') }}">退出</a>
+        </div>
+    </header>
+
+    <main class="container narrow">
+        <div class="paper">
+            <div class="paper-head">
+                <h2>{{ exam['title'] }} · 原卷</h2>
+                <p class="muted small">原卷不含答案，仅供回顾题目</p>
+            </div>
+
+            {% for q in questions %}
+            {% if q['type'] == 'group' %}
+            <!-- 大题 -->
+            <div class="q-group">
+                <div class="q-group-context q-md">{{ q['question'] }}</div>
+                <div class="q-group-children">
+                    {% for sub in q['children'] %}
+                    <div class="question">
+                        <div class="q-head">
+                            <span class="q-no">{{ sub['num'] }}</span>
+                            <span class="tag gray">{{ sub['type_label'] }}</span>
+                            <div class="q-text q-md-inline">{{ sub['question'] }}</div>
+                            <span class="q-score">{{ sub['score'] }} 分</span>
+                        </div>
+                        {% if sub['type'] in ('choice', 'judge', 'multi') %}
+                        <div class="options">
+                            {% for opt in sub['options'] %}
+                            <div class="option-static">
+                                <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                                <span>{{ opt }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <!-- 普通题 -->
+            <div class="question">
+                <div class="q-head">
+                    <span class="q-no">{{ q['num'] }}</span>
+                    <span class="tag gray">{{ q['type_label'] }}</span>
+                    <div class="q-text q-md">{{ q['question'] }}</div>
+                    <span class="q-score">{{ q['score'] }} 分</span>
+                </div>
+                {% if q['type'] in ('choice', 'judge', 'multi') %}
+                <div class="options">
+                    {% for opt in q['options'] %}
+                    <div class="option-static">
+                        <span class="opt-letter">{{ 'ABCDEFGH'[loop.index0] }}</span>
+                        <span>{{ opt }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        function addLineNumbers() {
+            document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                if (code.getAttribute('data-numbered')) return;
+                code.setAttribute('data-numbered', '1');
+                code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                    return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                }).join('');
+            });
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+        });
+    </script>
+</body>
+</html>

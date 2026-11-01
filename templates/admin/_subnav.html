@@ -1,0 +1,9 @@
+<nav class="subnav">
+    <a href="{{ url_for('admin_edit_exam', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'edit' }}">编辑</a>
+    <a href="{{ url_for('admin_questions', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'questions' }}">题目</a>
+    <a href="{{ url_for('admin_results', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'results' }}">成绩</a>
+    <a href="{{ url_for('admin_stats', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'stats' }}">统计</a>
+    <a href="{{ url_for('admin_lecture', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'lecture' }}">讲课</a>
+    <a href="{{ url_for('admin_monitor', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'monitor' }}">监考</a>
+    <a href="{{ url_for('admin_reflections', exam_id=exam['id']) }}" class="{{ 'active' if sub == 'reflections' }}">反思</a>
+</nav>

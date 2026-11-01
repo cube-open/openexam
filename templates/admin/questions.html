@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>题目管理 · {{ exam['title'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container">
+        {% set sub = 'questions' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">题目管理 · {{ exam['title'] }} <span class="muted small">（共 {{ questions|length }} 道）</span></h1>
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <h2>添加题目</h2>
+            <form method="post" class="stack-form">
+                <div class="form-row">
+                    <div class="field">
+                        <label>题型</label>
+                        <select name="type" id="type-select">
+                            <option value="choice">单选</option>
+                            <option value="multi">多选</option>
+                            <option value="judge">判断</option>
+                            <option value="blank">填空</option>
+                        </select>
+                    </div>
+                    <div class="field narrow">
+                        <label>分值</label>
+                        <input type="number" name="score" value="5" min="1">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>题干</label>
+                    <textarea name="question" required placeholder="请输入题目内容"></textarea>
+                </div>
+
+                <!-- 单选 / 多选共用选项编辑 -->
+                <div id="opt-fields">
+                    <label>选项（对应字母 A/B/C/D…，可留空，提交时自动对齐）</label>
+                    <div class="option-editor" id="option-editor">
+                        <div class="opt-row"><span class="opt-letter">A</span><input type="text" name="option" placeholder="选项 A"></div>
+                        <div class="opt-row"><span class="opt-letter">B</span><input type="text" name="option" placeholder="选项 B"></div>
+                        <div class="opt-row"><span class="opt-letter">C</span><input type="text" name="option" placeholder="选项 C（可选）"></div>
+                        <div class="opt-row"><span class="opt-letter">D</span><input type="text" name="option" placeholder="选项 D（可选）"></div>
+                    </div>
+                    <button type="button" class="btn sm" id="add-option" style="margin-top:6px">+ 添加选项</button>
+                </div>
+
+                <div id="choice-answer" class="field narrow">
+                    <label>正确答案（单选）</label>
+                    <select name="choice_answer">
+                        <option>A</option><option>B</option><option>C</option><option>D</option>
+                        <option>E</option><option>F</option><option>G</option><option>H</option>
+                    </select>
+                </div>
+
+                <div id="multi-answer" class="field" style="display:none">
+                    <label>正确答案（多选，填字母如 ABD）</label>
+                    <input type="text" name="multi_answer" placeholder="例如：ABD">
+                </div>
+
+                <div id="judge-fields" class="field narrow" style="display:none">
+                    <label>判断答案</label>
+                    <select name="judge_answer">
+                        <option value="A">正确</option>
+                        <option value="B">错误</option>
+                    </select>
+                </div>
+
+                <div id="blank-fields" class="field" style="display:none">
+                    <label>正确答案（多个可接受答案用 | 分隔，忽略大小写）</label>
+                    <input type="text" name="blank_answer" placeholder="例如：北京|Beijing">
+                </div>
+
+                <div class="field">
+                    <label>解析（可选，支持 Markdown 渲染）</label>
+                    <textarea name="explanation" rows="3" placeholder="例如：**考点**：进制转换。用 `除 R 取余` 法，从下往上读余数。"></textarea>
+                </div>
+
+                {% if all_kps %}
+                <div class="field">
+                    <label>知识点标签</label>
+                    <div class="kp-checkboxes">
+                        {% for kp in all_kps %}
+                        <label class="kp-check">
+                            <input type="checkbox" name="kp_ids" value="{{ kp['id'] }}">
+                            {{ kp['name'] }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <button type="submit" class="btn primary">添加题目</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>批量导入题目（Excel / CSV）</h2>
+            <p class="muted small" style="margin-bottom:10px">
+                上传 <code>.xlsx</code> 或 <code>.csv</code>，列为：<code>题型 | 题干 | 选项A … 选项H | 答案 | 分值 | 解析 | 知识点</code>（知识点可留空，多个用 | 分隔）。
+                第一行是表头会自动跳过，没有表头也行。上传后先出<b>预览页</b>，确认才写入题库。
+            </p>
+            <p class="muted small" style="margin-bottom:10px">
+                答案写法很宽松：单选可填 <code>B</code>、<code>2</code>（第几个选项）或<b>选项原文</b>；多选可填 <code>ABD</code>、<code>A,B,D</code>、<code>A、B、D</code> 或选项原文；
+                判断可填 <code>A/B</code>、<code>正确/错误</code>、<code>对/错</code>、<code>T/F</code>、<code>√/×</code>；填空多个答案用 <code>|</code> 分隔。
+                题型留空时会按选项和答案自动识别（预览页会标注）。
+            </p>
+            <div class="inline-form">
+                <form method="post" action="{{ url_for('admin_import_questions_excel', exam_id=exam['id']) }}"
+                      enctype="multipart/form-data" style="display:flex; gap:10px; align-items:center; margin:0">
+                    <input type="file" name="file" accept=".xlsx,.csv" required>
+                    <button type="submit" class="btn primary">上传导入</button>
+                </form>
+                <a class="btn" href="{{ url_for('admin_question_template') }}">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Excel 模板
+                </a>
+                <a class="btn" href="{{ url_for('admin_question_template', fmt='csv') }}">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>CSV 模板
+                </a>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>批量导入题目（JSON）</h2>
+            <p class="muted small" style="margin-bottom:10px">
+                粘贴一个 JSON 数组，每个元素一道题，提交后先出<b>预览页</b>，确认才写入题库。
+                <code>type</code> 支持 <code>choice / multi / judge / blank</code> 及中文别名（单选 / 多选 / 判断 / 填空题…），<b>留空会自动识别</b>；
+                答案写法同 Excel（字母、序号、选项原文均可）；可用 <code>kp</code> 或 <code>kps</code> 挂知识点（填知识点名称）。
+            </p>
+            <table class="table">
+                <thead>
+                    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td data-label="字段"><code>type</code></td><td data-label="类型">字符串</td>
+                        <td data-label="说明">题型：<code>choice</code> 单选 / <code>multi</code> 多选 / <code>judge</code> 判断 / <code>blank</code> 填空；留空按选项和答案自动识别</td>
+                    </tr>
+                    <tr>
+                        <td data-label="字段"><code>question</code></td><td data-label="类型">字符串</td>
+                        <td data-label="说明">题干内容</td>
+                    </tr>
+                    <tr>
+                        <td data-label="字段"><code>options</code></td><td data-label="类型">字符串数组</td>
+                        <td data-label="说明">选项列表，<b>仅单选/多选需要</b>；按顺序对应 A、B、C、D…（判断/填空可省略，支持 "A. 选项内容" 写法）</td>
+                    </tr>
+                    <tr>
+                        <td data-label="字段"><code>answer</code></td><td data-label="类型">字符串</td>
+                        <td data-label="说明">正确答案：单选填字母如 <code>"B"</code>、序号如 <code>"2"</code> 或选项原文；多选填 <code>"AC"</code> / <code>"A,C"</code> / <code>"A、C"</code>；判断填 <code>"A"</code>（正确）/ <code>"B"</code>（错误）/ <code>"对"</code> / <code>"T"</code> 等；填空填 <code>"答案1|答案2"</code>（忽略大小写）</td>
+                    </tr>
+                    <tr>
+                        <td data-label="字段"><code>score</code></td><td data-label="类型">数字</td>
+                        <td data-label="说明">分值，可省略（默认 5）</td>
+                    </tr>
+                    <tr>
+                        <td data-label="字段"><code>kp</code> / <code>kps</code></td><td data-label="类型">字符串或数组</td>
+                        <td data-label="说明">知识点名称，可省略；名称不存在会忽略并提示</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="muted small" style="margin-top:12px; margin-bottom:6px">示例（支持子题）：</p>
+            <pre class="code-block" style="white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto">[
+  {"type":"choice","question":"1+1=?","options":["1","2","3","4"],"answer":"B","score":5},
+  {"type":"blank","question":"HTTP默认端口是____","answer":"80","score":5},
+  {"type":"choice","question":"阅读程序：\n```cpp\nint x=5;\n```","answer":"B","score":2,
+   "sub":[
+     {"type":"judge","question":"输出为5","answer":"A","score":1},
+     {"type":"choice","question":"x的类型？","options":["int","float"],"answer":"A","score":3}
+   ]}
+]</pre>
+
+            <form method="post" action="{{ url_for('admin_import_questions', exam_id=exam['id']) }}" class="stack-form">
+                <textarea name="bulk" rows="8" placeholder='[{"type":"choice","question":"…","options":["A","B"],"answer":"A","score":5}]'></textarea>
+                <button type="submit" class="btn primary">导 入</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>题目列表</h2>
+            <div class="batch-toolbar">
+                <label class="check-row" style="margin:0"><input type="checkbox" id="check-all"> 全选</label>
+                <button type="button" class="btn sm danger" onclick="if(confirm('确定删除选中的题目？')) batch('delete')">批量删除</button>
+                <span class="muted small">分值</span>
+                <input type="number" id="batch-score" value="5" min="1" style="width:70px">
+                <button type="button" class="btn sm" onclick="batch('set_score', {score: document.getElementById('batch-score').value})">应用分值</button>
+                <span class="muted small">题型</span>
+                <select id="batch-type" style="width:90px">
+                    <option value="choice">单选</option>
+                    <option value="multi">多选</option>
+                </select>
+                <button type="button" class="btn sm" onclick="batch('set_type', {type: document.getElementById('batch-type').value})">应用题型</button>
+            </div>
+
+            {% for q in questions %}
+            <div class="q-admin">
+                <div class="q-admin-head">
+                    <input type="checkbox" class="q-check" value="{{ q['id'] }}">
+                    <span class="tag {% if q['type']=='choice' %}choice{% elif q['type']=='multi' %}amber{% elif q['type']=='judge' %}green{% elif q['type']=='group' %}blue{% else %}gray{% endif %}">{{ q['type_label'] }}</span>
+                    <span class="q-md-inline">{{ loop.index }}. {{ q['question'] }}</span>
+                    <span class="muted small">{{ q['score'] }} 分</span>
+                    {% if q['children'] %}<span class="tag" style="margin-left:6px">{{ q['children']|length }} 小题</span>{% endif %}
+                    <span style="margin-left:auto; display:inline-flex; gap:6px; align-items:center">
+                        <a class="btn sm" href="{{ url_for('admin_edit_question', qid=q['id']) }}">编辑</a>
+                        <form method="post" action="{{ url_for('admin_delete_question', qid=q['id']) }}"
+                              onsubmit="return confirm('确定删除该题{% if q['children'] %}及其{{ q['children']|length }}个子题{% endif %}？');" style="display:inline">
+                            <button type="submit" class="btn sm danger">删除</button>
+                        </form>
+                    </span>
+                </div>
+                <div class="q-admin-meta muted small">
+                    {% if q['type'] in ('choice', 'multi', 'judge') %}
+                        选项：{% for o in q['options_list'] %}<span class="opt-tag">{{ 'ABCDEFGH'[loop.index0] }}. {{ o }}</span>{% endfor %}
+                        ｜ 答案：{{ q['answer'] }}
+                    {% else %}
+                        答案：{{ q['answer'] }}
+                    {% endif %}
+                    {% if q['explanation'] %}<span class="tag green" style="margin-left:6px">有解析</span>{% endif %}
+                    {% for kp in q['kp_list'] %}<span class="tag kp" style="margin-left:4px">{{ kp['name'] }}</span>{% endfor %}
+                </div>
+                {% for sub in q['children'] %}
+                <div class="q-admin q-sub">
+                    <div class="q-admin-head">
+                        <input type="checkbox" class="q-check" value="{{ sub['id'] }}">
+                        <span class="tag {% if sub['type']=='choice' %}choice{% elif sub['type']=='multi' %}amber{% elif sub['type']=='judge' %}green{% else %}gray{% endif %}">{{ sub['type_label'] }}</span>
+                        <span class="q-md-inline">{{ loop.index }}) {{ sub['question'][:100] }}{% if sub['question']|length > 100 %}…{% endif %}</span>
+                        <span class="muted small">{{ sub['score'] }} 分</span>
+                        <span style="margin-left:auto; display:inline-flex; gap:6px; align-items:center">
+                            <a class="btn sm" href="{{ url_for('admin_edit_question', qid=sub['id']) }}">编辑</a>
+                            <form method="post" action="{{ url_for('admin_delete_question', qid=sub['id']) }}"
+                                  onsubmit="return confirm('确定删除该子题？');" style="display:inline">
+                                <button type="submit" class="btn sm danger">删除</button>
+                            </form>
+                        </span>
+                    </div>
+                    <div class="q-admin-meta muted small">
+                        {% if sub['type'] in ('choice', 'multi', 'judge') %}
+                            选项：{% for o in sub['options_list'] %}<span class="opt-tag">{{ 'ABCDEFGH'[loop.index0] }}. {{ o }}</span>{% endfor %}
+                            ｜ 答案：{{ sub['answer'] }}
+                        {% else %}
+                            答案：{{ sub['answer'] }}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty">暂无题目</div>
+            {% endfor %}
+        </section>
+    </main>
+
+    <script>
+        const sel = document.getElementById('type-select');
+        const optF = document.getElementById('opt-fields');
+        const choiceA = document.getElementById('choice-answer');
+        const multiA = document.getElementById('multi-answer');
+        const judgeF = document.getElementById('judge-fields');
+        const blankF = document.getElementById('blank-fields');
+        function sync() {
+            const t = sel.value;
+            const showOpt = t === 'choice' || t === 'multi';
+            optF.style.display = showOpt ? '' : 'none';
+            choiceA.style.display = t === 'choice' ? '' : 'none';
+            multiA.style.display = t === 'multi' ? '' : 'none';
+            judgeF.style.display = t === 'judge' ? '' : 'none';
+            blankF.style.display = t === 'blank' ? '' : 'none';
+        }
+        sel.addEventListener('change', sync);
+        sync();
+
+        // 选项动态增删：空行提交前清掉，字母按实际顺序重排
+        const editor = document.getElementById('option-editor');
+        const OPT_LETTERS = 'ABCDEFGH';
+        document.getElementById('add-option').addEventListener('click', function () {
+            if (editor.children.length >= OPT_LETTERS.length) { alert('最多 ' + OPT_LETTERS.length + ' 个选项'); return; }
+            const n = editor.children.length;
+            const row = document.createElement('div');
+            row.className = 'opt-row';
+            row.innerHTML = '<span class="opt-letter">' + OPT_LETTERS[n] + '</span>' +
+                            '<input type="text" name="option" placeholder="选项 ' + OPT_LETTERS[n] + '">';
+            editor.appendChild(row);
+        });
+        const addForm = editor.closest('form');
+        addForm.addEventListener('submit', function () {
+            Array.from(editor.children).forEach(function (row) {
+                const input = row.querySelector('input');
+                if (input && !input.value.trim()) row.remove();
+            });
+            Array.from(editor.children).forEach(function (row, i) {
+                row.querySelector('.opt-letter').textContent = OPT_LETTERS[i];
+            });
+        });
+
+        // 批量操作
+        document.getElementById('check-all').addEventListener('change', function () {
+            document.querySelectorAll('.q-check').forEach(function (cb) { cb.checked = this.checked; }, this);
+        });
+        function batch(action, extra) {
+            const qids = Array.from(document.querySelectorAll('.q-check:checked')).map(function (cb) { return cb.value; });
+            if (!qids.length) { alert('请先勾选题目'); return; }
+            fetch("{{ url_for('admin_batch_questions', exam_id=exam['id']) }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.assign({ action: action, qids: qids }, extra || {}))
+            }).then(function (r) { return r.json(); })
+              .then(function (d) { location.reload(); })
+              .catch(function () { alert('操作失败'); });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.q-md-inline').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parseInline(src); }
+                catch (e) { el.textContent = src; }
+            });
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

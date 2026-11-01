@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编辑题目 #{{ q['id'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container narrow">
+        {% set sub = 'questions' %}
+        {% include 'admin/_subnav.html' %}
+        <h1 class="page-title">编辑题目 #{{ q['id'] }}</h1>
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <form method="post" class="stack-form">
+                <div class="form-row">
+                    <div class="field">
+                        <label>题型</label>
+                        <select name="type" id="type-select">
+                            <option value="choice" {{ 'selected' if q['type']=='choice' }}>单选</option>
+                            <option value="multi" {{ 'selected' if q['type']=='multi' }}>多选</option>
+                            <option value="judge" {{ 'selected' if q['type']=='judge' }}>判断</option>
+                            <option value="blank" {{ 'selected' if q['type']=='blank' }}>填空</option>
+                        </select>
+                    </div>
+                    <div class="field narrow">
+                        <label>分值</label>
+                        <input type="number" name="score" value="{{ q['score'] }}" min="1">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>题干</label>
+                    <textarea name="question" required>{{ q['question'] }}</textarea>
+                </div>
+
+                <div id="opt-fields">
+                    <label>选项（对应字母 A/B/C/D…）</label>
+                    <div class="option-editor">
+                        <div class="opt-row"><span class="opt-letter">A</span><input type="text" name="option" value="{{ options[0] if options|length > 0 else '' }}" placeholder="选项 A"></div>
+                        <div class="opt-row"><span class="opt-letter">B</span><input type="text" name="option" value="{{ options[1] if options|length > 1 else '' }}" placeholder="选项 B"></div>
+                        <div class="opt-row"><span class="opt-letter">C</span><input type="text" name="option" value="{{ options[2] if options|length > 2 else '' }}" placeholder="选项 C"></div>
+                        <div class="opt-row"><span class="opt-letter">D</span><input type="text" name="option" value="{{ options[3] if options|length > 3 else '' }}" placeholder="选项 D"></div>
+                    </div>
+                </div>
+
+                <div id="choice-answer" class="field narrow">
+                    <label>正确答案（单选）</label>
+                    <select name="choice_answer">
+                        {% for letter in ['A','B','C','D','E','F','G','H'] %}
+                        <option value="{{ letter }}" {{ 'selected' if q['answer'] == letter }}>{{ letter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="multi-answer" class="field" style="display:none">
+                    <label>正确答案（多选，填字母如 ABD）</label>
+                    <input type="text" name="multi_answer" value="{{ q['answer'] if q['type']=='multi' else '' }}" placeholder="例如：ABD">
+                </div>
+
+                <div id="judge-fields" class="field narrow" style="display:none">
+                    <label>判断答案</label>
+                    <select name="judge_answer">
+                        <option value="A" {{ 'selected' if q['answer'] == 'A' }}>正确</option>
+                        <option value="B" {{ 'selected' if q['answer'] == 'B' }}>错误</option>
+                    </select>
+                </div>
+
+                <div id="blank-fields" class="field" style="display:none">
+                    <label>正确答案（多个可接受答案用 | 分隔，忽略大小写）</label>
+                    <input type="text" name="blank_answer" value="{{ blank_answer }}" placeholder="例如：北京|Beijing">
+                </div>
+
+                <div class="field">
+                    <label>解析（可选，支持 Markdown 渲染）</label>
+                    <textarea name="explanation" rows="3" placeholder="例如：**考点**：进制转换。用 `除 R 取余` 法…">{{ q['explanation'] }}</textarea>
+                </div>
+
+                {% if all_kps %}
+                <div class="field">
+                    <label>知识点标签</label>
+                    <div class="kp-checkboxes">
+                        {% for kp in all_kps %}
+                        <label class="kp-check">
+                            <input type="checkbox" name="kp_ids" value="{{ kp['id'] }}"
+                                   {{ 'checked' if kp['id'] in selected_kps }}>
+                            {{ kp['name'] }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div style="margin-top:18px; display:flex; gap:10px">
+                    <button type="submit" class="btn primary">保存修改</button>
+                    <a class="btn" href="{{ url_for('admin_questions', exam_id=q['exam_id']) }}">返回</a>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        const sel = document.getElementById('type-select');
+        const optF = document.getElementById('opt-fields');
+        const choiceA = document.getElementById('choice-answer');
+        const multiA = document.getElementById('multi-answer');
+        const judgeF = document.getElementById('judge-fields');
+        const blankF = document.getElementById('blank-fields');
+        function sync() {
+            const t = sel.value;
+            optF.style.display = (t === 'choice' || t === 'multi') ? '' : 'none';
+            choiceA.style.display = t === 'choice' ? '' : 'none';
+            multiA.style.display = t === 'multi' ? '' : 'none';
+            judgeF.style.display = t === 'judge' ? '' : 'none';
+            blankF.style.display = t === 'blank' ? '' : 'none';
+        }
+        sel.addEventListener('change', sync);
+        sync();
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

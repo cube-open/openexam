@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账号设置 · {{ brand_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    {% set active = 'profile' %}
+    {% include '_topbar_student.html' %}
+
+    <main class="container narrow">
+        <h1 class="page-title">账号设置</h1>
+        {% include '_flash.html' %}
+
+        <section class="panel">
+            <form method="post" class="stack-form">
+                <div class="field">
+                    <label>用户名（登录名，不可修改）</label>
+                    <input type="text" value="{{ stu['username'] }}" disabled>
+                </div>
+                <div class="field">
+                    <label>姓名</label>
+                    <input type="text" name="name" value="{{ stu['name'] }}" required>
+                </div>
+
+                <h2 style="margin-top:24px">修改密码</h2>
+                <div class="field">
+                    <label>当前密码</label>
+                    <input type="password" name="old_password" required autocomplete="current-password">
+                </div>
+                <div class="field">
+                    <label>新密码（至少 6 位，留空则不修改）</label>
+                    <input type="password" name="new_password" autocomplete="new-password">
+                </div>
+
+                <button type="submit" class="btn primary" style="margin-top:18px">保存</button>
+            </form>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>

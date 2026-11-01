@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>答卷 · {{ result['name'] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="app-body admin-layout" style="--primary: {{ brand_color }}; --primary-dark: {{ brand_color }}" data-density="{{ ui_density }}">
+    <aside class="admin-sidebar">
+        <div class="brand">
+            {% if logo_url %}<span class="brand-logo"><img src="{{ logo_url }}" alt="{{ brand_name }}"></span>{% endif %}
+            <span class="brand-name">{{ brand_name }}</span>{% if brand_tagline %}<span class="brand-tagline">{{ brand_tagline }}</span>{% endif %}
+        </div>
+        {% set active = 'exams' %}
+        {% include 'admin/_nav.html' %}
+    </aside>
+
+    <main class="container wide">
+        {% set sub = 'results' %}
+        {% include 'admin/_subnav.html' %}
+        {% include '_flash.html' %}
+        <div class="detail-layout">
+            <!-- 左侧学生切换 -->
+            <aside class="student-sidebar">
+                <div class="sidebar-title">学生（{{ students|length }}）</div>
+                <div class="sidebar-search">
+                    <input type="text" id="student-search" placeholder="搜索学生姓名…" autocomplete="off">
+                </div>
+                {% for s in students %}
+                <a class="sidebar-item {{ 'active' if s['rid'] == current_rid }}"
+                   href="{{ url_for('admin_result_view', rid=s['rid']) }}">
+                    <span class="sidebar-name">{{ s['name'] }}</span>
+                    <span class="sidebar-score">{{ s['score'] }}</span>
+                    {% if s['notes'] %}<span class="sidebar-dot" title="有笔记"></span>{% endif %}
+                </a>
+                {% else %}
+                <div class="muted small" style="padding:10px">暂无已交卷学生</div>
+                {% endfor %}
+            </aside>
+
+            <!-- 右侧答卷详情 -->
+            <div class="detail-main">
+                <div class="result-head">
+                    <div class="score-ring">
+                        <span class="score-num">{{ result['score'] }}</span>
+                        <span class="score-total">/ {{ total }}</span>
+                    </div>
+                    <div class="result-info">
+                        <h1>{{ exam['title'] }}</h1>
+                        <p>{{ result['name'] }}（学号 {{ result['student_no'] }}）</p>
+                        {% if result['auto_submitted'] %}
+                            <span class="tag red">超时自动交卷</span>
+                        {% else %}
+                            <span class="tag green">正常交卷</span>
+                        {% endif %}
+                        <span class="tag gray">切屏警告 {{ result['violations'] }} 次</span>
+                        <label class="check-row" style="margin-top:10px">
+                            <input type="checkbox" id="filter-wrong"> 仅查看错题
+                        </label>
+                        <label class="check-row" style="margin-top:10px">
+                            <input type="checkbox" id="toggle-explanation" checked> 显示官方解析
+                        </label>
+                        <label class="check-row" style="margin-top:6px">
+                            <input type="checkbox" id="toggle-notes" checked> 显示学生笔记
+                        </label>
+                        <div style="margin-top:12px">
+                            <a class="btn primary" href="{{ url_for('admin_result_pdf', rid=result['id']) }}">
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>下载成绩单 PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                {% if result['reflection'] %}
+                <div class="paper" style="margin-bottom:14px">
+                    <h2>考试反思</h2>
+                    <div class="notes-text">{{ result['reflection'] }}</div>
+                </div>
+                {% endif %}
+
+                <div class="paper">
+                    <h2>答题详情</h2>
+                    {% for r in rows %}
+                    <div class="review-item {{ 'correct' if r['correct'] else 'wrong' }}">
+                        <div class="r-head">
+                            <span class="q-no">{{ loop.index }}</span>
+                            <span class="tag gray">{{ r['type_label'] }}</span>
+                            <span class="r-mark {{ 'ok' if r['correct'] else 'bad' }}">
+                                {% if r['correct'] %}
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                {% else %}
+                                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                {% endif %}
+                            </span>
+                            <div class="q-text q-md">{{ r['question'] }}</div>
+                            <span class="q-score">{{ r['score'] if r['correct'] else 0 }} / {{ r['score'] }} 分</span>
+                        </div>
+                        {% if r['type'] in ('choice', 'judge', 'multi') %}
+                            <div class="r-options">
+                                {% for opt in r['options'] %}
+                                <div class="r-option {{ 'is-answer' if 'ABCDEFGH'[loop.index0] in r['answer'] }}">
+                                    {{ 'ABCDEFGH'[loop.index0] }}. {{ opt }}
+                                    {% if 'ABCDEFGH'[loop.index0] in r['given'] %}<span class="tag green" style="margin-left:6px">已选</span>{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="r-answer">
+                            学生答案：<strong>{{ r['given'] if r['given'] else '（未作答）' }}</strong>
+                            {% if not r['correct'] %}
+                                <span class="correct-answer">正确答案：{{ r['answer_display'] }}</span>
+                            {% endif %}
+                        </div>
+                        {% if r['explanation'] %}
+                        <div class="explanation">
+                            <div class="explanation-title">官方解析</div>
+                            <div class="markdown-body">{{ r['explanation'] }}</div>
+                        </div>
+                        {% endif %}
+                        {% if notes.get(r['id']|string, '') %}
+                        <div class="q-note">
+                            <div class="note-label">学生笔记（Markdown）</div>
+                            <div class="markdown-body">{{ notes.get(r['id']|string, '') }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='marked.min.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            function addLineNumbers() {
+                document.querySelectorAll('.q-md pre code, .markdown-body pre code').forEach(function (code) {
+                    if (code.getAttribute('data-numbered')) return;
+                    code.setAttribute('data-numbered', '1');
+                    code.innerHTML = code.textContent.replace(/\n$/, '').split('\n').map(function (line) {
+                        return '<span class="code-line">' + line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+                    }).join('');
+                });
+            }
+            document.querySelectorAll('.markdown-body, .q-md').forEach(function (el) {
+                var src = el.textContent;
+                try { el.innerHTML = window.marked.parse(src, { breaks: true }); }
+                catch (e) { el.textContent = src; }
+            });
+            addLineNumbers();
+            function applyToggle(toggle, selector, key) {
+                if (!toggle) return;
+                var saved = localStorage.getItem(key);
+                if (saved !== null) toggle.checked = (saved === '1');
+                var els = document.querySelectorAll(selector);
+                function sync() {
+                    els.forEach(function (el) { el.style.display = toggle.checked ? '' : 'none'; });
+                    localStorage.setItem(key, toggle.checked ? '1' : '0');
+                }
+                toggle.addEventListener('change', sync);
+                sync();
+            }
+            applyToggle(document.getElementById('toggle-explanation'), '.explanation', 'showExplanation');
+            applyToggle(document.getElementById('toggle-notes'), '.q-note', 'showNotes');
+            var filterWrong = document.getElementById('filter-wrong');
+            if (filterWrong) {
+                filterWrong.addEventListener('change', function () {
+                    document.querySelectorAll('.review-item').forEach(function (el) {
+                        el.style.display = (filterWrong.checked && !el.classList.contains('wrong')) ? 'none' : '';
+                    });
+                });
+            }
+            var search = document.getElementById('student-search');
+            if (search) {
+                search.addEventListener('input', function () {
+                    var kw = search.value.trim().toLowerCase();
+                    document.querySelectorAll('.sidebar-item').forEach(function (item) {
+                        var name = item.querySelector('.sidebar-name').textContent;
+                        item.style.display = (name.toLowerCase().indexOf(kw) >= 0) ? '' : 'none';
+                    });
+                });
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='ui.js') }}" defer></script>
+</body>
+</html>
